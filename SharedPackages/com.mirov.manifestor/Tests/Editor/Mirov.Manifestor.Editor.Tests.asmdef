@@ -1,0 +1,14 @@
+{
+  "name": "Mirov.Manifestor.Editor.Tests",
+  "rootNamespace": "Mirov.Manifestor.Editor.Tests",
+  "references": [
+    "Mirov.Manifestor.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ],
+  "autoReferenced": false
+}

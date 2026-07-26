@@ -1,0 +1,111 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2c5bb2e03ef3474d8ba48a7b447b7b0f, type: 3}
+  m_Name: UnityPackages
+  m_EditorClassIdentifier: mirov.manifestor.editor::Mirov.Manifestor.Editor.ManifestCommonProfile
+  _packages:
+  - _packageName: com.unity.2d.sprite
+    _location: 1.0.0
+  - _packageName: com.unity.ai.assistant
+    _location: 2.16.0-pre.1
+  - _packageName: com.unity.collections
+    _location: 6.5.0
+  - _packageName: com.unity.ide.rider
+    _location: 3.0.40
+  - _packageName: com.unity.modules.accessibility
+    _location: 1.0.0
+  - _packageName: com.unity.modules.adaptiveperformance
+    _location: 1.0.0
+  - _packageName: com.unity.modules.ai
+    _location: 1.0.0
+  - _packageName: com.unity.modules.amd
+    _location: 1.0.0
+  - _packageName: com.unity.modules.androidjni
+    _location: 1.0.0
+  - _packageName: com.unity.modules.animation
+    _location: 1.0.0
+  - _packageName: com.unity.modules.assetbundle
+    _location: 1.0.0
+  - _packageName: com.unity.modules.audio
+    _location: 1.0.0
+  - _packageName: com.unity.modules.cloth
+    _location: 1.0.0
+  - _packageName: com.unity.modules.director
+    _location: 1.0.0
+  - _packageName: com.unity.modules.imageconversion
+    _location: 1.0.0
+  - _packageName: com.unity.modules.imgui
+    _location: 1.0.0
+  - _packageName: com.unity.modules.jsonserialize
+    _location: 1.0.0
+  - _packageName: com.unity.modules.nvidia
+    _location: 1.0.0
+  - _packageName: com.unity.modules.particlesystem
+    _location: 1.0.0
+  - _packageName: com.unity.modules.physics
+    _location: 1.0.0
+  - _packageName: com.unity.modules.physics2d
+    _location: 1.0.0
+  - _packageName: com.unity.modules.physicscore2d
+    _location: 1.0.0
+  - _packageName: com.unity.modules.screencapture
+    _location: 1.0.0
+  - _packageName: com.unity.modules.terrain
+    _location: 1.0.0
+  - _packageName: com.unity.modules.terrainphysics
+    _location: 1.0.0
+  - _packageName: com.unity.modules.tilemap
+    _location: 1.0.0
+  - _packageName: com.unity.modules.ui
+    _location: 1.0.0
+  - _packageName: com.unity.modules.uielements
+    _location: 1.0.0
+  - _packageName: com.unity.modules.umbra
+    _location: 1.0.0
+  - _packageName: com.unity.modules.unityanalytics
+    _location: 1.0.0
+  - _packageName: com.unity.modules.unitywebrequest
+    _location: 1.0.0
+  - _packageName: com.unity.modules.unitywebrequestassetbundle
+    _location: 1.0.0
+  - _packageName: com.unity.modules.unitywebrequestaudio
+    _location: 1.0.0
+  - _packageName: com.unity.modules.unitywebrequesttexture
+    _location: 1.0.0
+  - _packageName: com.unity.modules.unitywebrequestwww
+    _location: 1.0.0
+  - _packageName: com.unity.modules.vectorgraphics
+    _location: 1.0.0
+  - _packageName: com.unity.modules.vehicles
+    _location: 1.0.0
+  - _packageName: com.unity.modules.video
+    _location: 1.0.0
+  - _packageName: com.unity.modules.wind
+    _location: 1.0.0
+  - _packageName: com.unity.modules.xr
+    _location: 1.0.0
+  - _packageName: com.unity.nuget.newtonsoft-json
+    _location: 3.2.2
+  - _packageName: com.unity.render-pipelines.core
+    _location: 17.5.0
+  - _packageName: com.unity.render-pipelines.universal
+    _location: 17.5.0
+  - _packageName: com.unity.test-framework
+    _location: 1.7.0
+  - _packageName: com.unity.ugui
+    _location: 2.5.0
+  - _packageName: com.unity.ui.test-framework
+    _location: 6.5.0
+  - _packageName: com.unity.modules.hierarchy
+    _location: 1.0.0
+  _defines: []
+  _scopedRegistries: []

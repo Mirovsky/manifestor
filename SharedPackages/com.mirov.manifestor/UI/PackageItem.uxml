@@ -1,0 +1,39 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+    <ui:VisualElement name="Wrapper" data-source-type="ManifestorMigrateTool+MigrationRow, mirov.manifestor.editor" style="flex-grow: 0; flex-direction: column; padding-top: 2px; padding-right: 2px; padding-bottom: 2px; padding-left: 2px; margin-bottom: 0; margin-left: 0; margin-right: 0; border-bottom-width: 1px; border-bottom-color: rgb(48, 48, 48); margin-top: 2px;">
+        <ui:VisualElement name="Header" style="flex-grow: 0; flex-direction: row; justify-content: space-between; margin-top: 0; margin-right: 10px; margin-bottom: 0; margin-left: 10px; border-bottom-width: 1px; border-bottom-color: rgb(80, 80, 80); padding-top: 0; padding-right: 2px; padding-bottom: 2px; padding-left: 2px;">
+            <ui:VisualElement name="Info" style="flex-grow: 0; flex-direction: column; margin-right: 0; margin-bottom: 0; margin-top: 0; margin-left: 0;">
+                <ui:Label name="TechnicalName" text="(com.package.name)" style="-unity-font-style: bold; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0;">
+                    <Bindings>
+                        <ui:DataBinding property="text" data-source-path="change.packageTechnicalName" binding-mode="ToTarget"/>
+                    </Bindings>
+                </ui:Label>
+            </ui:VisualElement>
+            <ui:VisualElement name="Versions" style="flex-grow: 0; flex-shrink: 0; flex-basis: 300px; margin-bottom: 0; margin-top: 0; margin-right: 0; margin-left: 0;">
+                <ui:VisualElement name="Version" style="flex-grow: 1; flex-direction: row; justify-content: space-between; margin-bottom: 2px;">
+                    <ui:Label name="VersionOrigin" text="Manifest" style="-unity-font-style: normal;"/>
+                    <ui:Label name="VersionText" text="0.0.0" style="-unity-font-style: bold; margin-left: 10px;">
+                        <Bindings>
+                            <ui:DataBinding property="text" data-source-path="change.manifestValue" binding-mode="ToTarget"/>
+                        </Bindings>
+                    </ui:Label>
+                </ui:VisualElement>
+                <ui:VisualElement name="Version" style="flex-grow: 1; flex-direction: row; justify-content: space-between; margin-bottom: 0; margin-top: 0; margin-right: 0; margin-left: 0;">
+                    <ui:Label name="VersionOrigin" text="Package List" style="-unity-font-style: normal;"/>
+                    <ui:Label name="VersionText" text="0.0.0" style="-unity-font-style: bold; margin-left: 10px;">
+                        <Bindings>
+                            <ui:DataBinding property="text" data-source-path="change.packageListValue" binding-mode="ToTarget"/>
+                        </Bindings>
+                    </ui:Label>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+        <ui:VisualElement name="PackageLists" style="flex-grow: 0; flex-direction: row; margin-bottom: 0; justify-content: space-between; display: flex; margin-top: 0; margin-right: 10px; margin-left: 30px; padding-top: 2px; padding-right: 2px; padding-bottom: 0; padding-left: 2px;">
+            <ui:Label text="Available Package Lists" style="width: 96px; flex-grow: 1; padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0;"/>
+            <ui:ListView allow-add="false" allow-remove="false" selection-type="None" virtualization-method="DynamicHeight" item-template="project://database/Packages/com.mirov.manifestor/UI/PackageListItem.uxml?fileID=9197481963319205126&amp;guid=ffd2bcfcf5110874c9ec6c5e3943879e&amp;type=3#PackageListItem" show-bound-collection-size="false" binding-source-selection-mode="AutoAssign" fixed-item-height="15" style="flex-basis: 300px; flex-shrink: 0;">
+                <Bindings>
+                    <ui:DataBinding property="itemsSource" data-source-path="targets" binding-mode="ToTarget"/>
+                </Bindings>
+            </ui:ListView>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>

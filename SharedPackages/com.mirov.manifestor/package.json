@@ -1,0 +1,11 @@
+{
+  "name": "com.mirov.manifestor",
+  "displayName": "Manifestor",
+  "version": "0.1.0",
+  "unity": "6000.4",
+  "description": "Editor tooling for generating Packages/manifest.json from ScriptableObject build profiles.",
+  "author": {
+    "name": "Jakub Mirovský"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,25 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+    <uie:Toolbar style="justify-content: space-between;">
+        <uie:ToolbarButton text="New Manifest" icon-image="project://database/Packages/com.unity.ai.assistant/Editor/UI/Assets/icons/Plus.png?fileID=2800000&amp;guid=417a8b4f0629d164f98ee51563005405&amp;type=3#Plus" name="NewManifestButton" style="padding-top: 3px; padding-right: 3px; padding-bottom: 3px; padding-left: 3px;"/>
+        <ui:VisualElement style="flex-grow: 0; flex-direction: row;">
+            <uie:ToolbarButton text="Player Settings" name="PlayerSettingsButton"/>
+            <uie:ToolbarButton text="Build Profiles" name="BuildProfilesButton"/>
+        </ui:VisualElement>
+    </uie:Toolbar>
+    <ui:VisualElement name="TwoPanelSplitView" style="flex-grow: 1; flex-direction: row;">
+        <ui:VisualElement name="LeftPanel" class="lhs-pane" style="flex-grow: 0; flex-shrink: 0; flex-basis: auto; width: 225px; min-width: 225px; border-right-width: 1px; border-right-color: rgb(35, 35, 35);">
+            <ui:ListView item-template="project://database/Packages/com.mirov.manifestor/UI/ManifestItem.uxml?fileID=9197481963319205126&amp;guid=da1c31a5e0b24ac4caa19ea9e49b4cce&amp;type=3#ManifestItem" binding-source-selection-mode="AutoAssign" virtualization-method="FixedHeight" allow-add="false" allow-remove="false" show-bound-collection-size="false" show-alternating-row-backgrounds="All" fixed-item-height="18" name="ManifestsListView">
+                <Bindings>
+                    <ui:DataBinding property="itemsSource" data-source-path="manifests" binding-mode="ToTarget"/>
+                </Bindings>
+            </ui:ListView>
+        </ui:VisualElement>
+        <ui:VisualElement name="RightPanel" class="rhs-pane" style="flex-grow: 1;">
+            <ui:VisualElement name="Content" data-source-type="Mirov.Manifestor.Editor.CustomBuildWindow+CustomBuildData, mirov.manifestor.editor" data-source-path="activeManifestProfile" style="flex-grow: 1;"/>
+            <ui:VisualElement name="Footer" style="flex-grow: 0; flex-shrink: 0; flex-direction: row; justify-content: flex-end; padding-top: 8px; padding-bottom: 8px; padding-left: 8px; padding-right: 8px; border-top-width: 1px; border-top-color: rgb(35, 35, 35);">
+                <ui:Button text="Apply Manifest" name="ApplyManifestButton"/>
+                <Mirov.Manifestor.Editor.DropdownButton text="Build"/>
+            </ui:VisualElement>
+        </ui:VisualElement>
+    </ui:VisualElement>
+</ui:UXML>
