@@ -20,6 +20,11 @@ namespace Mirov.Manifestor.Editor
                 return;
             }
 
+            if (CustomBuildPipeline.isActive)
+            {
+                return;
+            }
+
             if (!ManifestorEditorPrefs.TryGetLastAppliedProfilePath(out var profilePath))
             {
                 return;
@@ -39,11 +44,10 @@ namespace Mirov.Manifestor.Editor
                 return;
             }
 
-            string currentManifestHash;
+            string currentProfileFingerprint;
             try
             {
-                var generatedManifest = ManifestorIO.ConvertToManifest(profile);
-                currentManifestHash = ManifestorIO.CalculateManifestHash(generatedManifest);
+                currentProfileFingerprint = ManifestorProfileFingerprint.Calculate(profile);
             }
             catch (Exception exception)
             {
@@ -51,13 +55,13 @@ namespace Mirov.Manifestor.Editor
                 return;
             }
 
-            if (ManifestorEditorPrefs.TryGetLastAppliedManifestHash(out var savedManifestHash) &&
-                string.Equals(currentManifestHash, savedManifestHash, StringComparison.Ordinal))
+            if (ManifestorEditorPrefs.TryGetLastAppliedProfileFingerprint(out var savedProfileFingerprint) &&
+                string.Equals(currentProfileFingerprint, savedProfileFingerprint, StringComparison.Ordinal))
             {
                 return;
             }
 
-            var result = ManifestorApplicator.Apply(profile);
+            var result = CustomBuildPipeline.Apply(profile);
             if (!result.success)
             {
                 Debug.LogWarning($"Manifestor startup apply skipped: {result.message}");

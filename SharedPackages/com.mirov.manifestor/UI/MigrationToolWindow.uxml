@@ -8,6 +8,6 @@
     </uie:Toolbar>
     <ui:HelpBox text="Your ManifestProfiles and current manifest.json differ. Pick what you want to do with each added/removed or modified entry. It will be overwritten on next editor load." message-type="Warning" data-source-type="ManifestorMigrateTool+MigrationRows, mirov.manifestor.editor" data-source-path="" style="margin-top: 2px; margin-bottom: 2px;"/>
     <ui:VisualElement name="ContentList" style="flex-grow: 1;">
-        <ui:ListView name="ContentListView" virtualization-method="DynamicHeight" binding-source-selection-mode="AutoAssign" show-bound-collection-size="true" data-source-path="rows" item-template="project://database/Packages/com.mirov.manifestor/UI/PackageItem.uxml?fileID=9197481963319205126&amp;guid=6b9f2b78be20e8f46b9bcb9cf6703013&amp;type=3#PackageItem" allow-add="false" allow-remove="false" selection-type="None" show-alternating-row-backgrounds="All" data-source-type="ManifestorMigrateTool+MigrationRows, mirov.manifestor.editor"/>
+        <ui:ListView name="ContentListView" virtualization-method="DynamicHeight" binding-source-selection-mode="AutoAssign" show-bound-collection-size="true" data-source-path="rows" item-template="project://database/Packages/com.mirov.manifestor/UI/PackageItem.uxml?fileID=9197481963319205126&amp;guid=6b9f2b78be20e8f46b9bcb9cf6703013&amp;type=3#PackageItem" allow-add="false" allow-remove="false" selection-type="None" show-alternating-row-backgrounds="All" data-source-type="ManifestorMigrateTool+ViewDataModel, mirov.manifestor.editor"/>
     </ui:VisualElement>
 </ui:UXML>

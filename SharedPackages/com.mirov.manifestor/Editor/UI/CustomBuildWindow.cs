@@ -6,6 +6,7 @@ namespace Mirov.Manifestor.Editor
     using System.Collections.Generic;
     using System.Linq;
     using UnityEditor;
+    using UnityEditor.UIElements;
     using UnityEngine.UIElements;
 
     public class CustomBuildWindow : EditorWindow
@@ -13,6 +14,11 @@ namespace Mirov.Manifestor.Editor
         [SerializeField] private VisualTreeAsset _customBuildAsset;
 
         private readonly CustomBuildData _customBuildData = new();
+        private ListView _manifestsList;
+        private VisualElement _content;
+        private BuildStepsList _buildStepsList;
+
+        private Editor _manifestProfileEditor;
 
         [MenuItem("Tools/Manifestor/Custom Build")]
         public static void ShowWindow()
@@ -29,42 +35,165 @@ namespace Mirov.Manifestor.Editor
             var newManifestButton = rootVisualElement.Q<Button>("NewManifestButton");
             newManifestButton.clicked += HandleNewManifestClicked;
 
+             var refreshButton = rootVisualElement.Q<Button>("RefreshButton");
+             refreshButton.clicked += HandleRefreshClicked;
+
             var playerSettingsButton = rootVisualElement.Q<Button>("PlayerSettingsButton");
             playerSettingsButton.clicked += HandlePlayerSettingsClicked;
 
             var buildProfilesButton = rootVisualElement.Q<Button>("BuildProfilesButton");
             buildProfilesButton.clicked += HandleBuildProfilesClicked;
 
-            var manifestsList = rootVisualElement.Q<ListView>("ManifestsListView");
-            manifestsList.selectionChanged += HandleManifestsListSelectionChanged;
+            var applyManifestButton = rootVisualElement.Q<Button>("ApplyManifestButton");
+            applyManifestButton.clicked += HandleApplyManifestButtonClicked;
 
+            var buildButton = rootVisualElement.Q<DropdownButton>("BuildButton");
+            buildButton.clicked += HandleDefaultBuildButtonClicked;
+            buildButton.choiceSelected += HandleBuildChoiceSelected;
+
+            _manifestsList = rootVisualElement.Q<ListView>("ManifestsListView");
+            _manifestsList.selectionChanged += HandleManifestsListSelectionChanged;
+
+            _buildStepsList = rootVisualElement.Q<BuildStepsList>("BuildStepsList");
+
+            _content = rootVisualElement.Q<VisualElement>("Content");
             rootVisualElement.dataSource = _customBuildData;
+
+            CustomBuildPipeline.completed -= HandleCustomBuildPipelineCompleted;
+            CustomBuildPipeline.completed += HandleCustomBuildPipelineCompleted;
+
+            Refresh();
+        }
+
+        private void OnDisable()
+        {
+            CustomBuildPipeline.completed -= HandleCustomBuildPipelineCompleted;
+            DestroyManifestProfileEditor();
+        }
+
+        private void HandleDefaultBuildButtonClicked()
+        {
+            var profile = _customBuildData.selectedManifestProfile;
+            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
+            if (string.IsNullOrEmpty(folderPath))
+            {
+                return;
+            }
+
+            LogPipelineStartError(CustomBuildPipeline.Build(profile, folderPath));
+        }
+
+        private void HandleCleanBuildButtonClicked()
+        {
+            var profile = _customBuildData.selectedManifestProfile;
+            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
+            if (string.IsNullOrEmpty(folderPath))
+            {
+                return;
+            }
+
+            LogPipelineStartError(
+                CustomBuildPipeline.Build(profile, folderPath, BuildOptions.CleanBuildCache));
+        }
+
+        private void HandleBuildChoiceSelected(string choice)
+        {
+            if (choice == "Clean Build")
+            {
+                HandleCleanBuildButtonClicked();
+            }
         }
 
         private void HandleManifestsListSelectionChanged(IEnumerable<object> manifests)
         {
-            if (manifests == null || manifests.Count() == 0)
-            {
-                return;
-            }
+            var selectedManifest = manifests?.FirstOrDefault() as ManifestProfileData;
+            var manifestProfile = selectedManifest?.manifestProfile;
 
-            var selectedManifest = manifests.First() as ManifestProfileData;
-            if (selectedManifest == null)
-            {
-                return;
-            }
+            ShowManifestProfileInspector(manifestProfile);
 
-            _customBuildData.activeManifestProfile = selectedManifest.manifestProfile;
+            _customBuildData.selectedManifestProfile = manifestProfile;
         }
 
         private void Refresh()
         {
-            var manifests = FindManifests();
+            var hasValidOrder = CustomBuildPipeline.TryGetOrderedSteps(out var steps, out var error);
+            _buildStepsList.SetSteps(hasValidOrder, steps, error);
 
-            _customBuildData.activeManifestProfile = manifests.First(m => m.isActive)?.manifestProfile;
+            var manifests = FindManifests();
+            var selectedIndex = manifests.FindIndex(manifest => manifest.isActive);
+            if (selectedIndex < 0 && manifests.Count > 0)
+            {
+                selectedIndex = 0;
+            }
+
+            var activeProfile =  selectedIndex >= 0
+                ? manifests[selectedIndex].manifestProfile
+                : null;
+
+            _customBuildData.activeManifestProfile = activeProfile;
+            _customBuildData.selectedManifestProfile = activeProfile;
 
             _customBuildData.manifests.Clear();
             _customBuildData.manifests.AddRange(manifests);
+
+            if (_manifestsList == null)
+            {
+                return;
+            }
+
+            _manifestsList.RefreshItems();
+
+            if (selectedIndex >= 0)
+            {
+                _manifestsList.SetSelection(selectedIndex);
+                ShowManifestProfileInspector(manifests[selectedIndex].manifestProfile);
+            }
+            else
+            {
+                _manifestsList.ClearSelection();
+                ShowManifestProfileInspector(null);
+            }
+        }
+
+        private void ShowManifestProfileInspector(ManifestProfileSO manifestProfile)
+        {
+            if (_content == null ||
+                manifestProfile != null &&
+                _manifestProfileEditor != null &&
+                _manifestProfileEditor.target == manifestProfile)
+            {
+                return;
+            }
+
+            _content.Clear();
+            DestroyManifestProfileEditor();
+
+            if (manifestProfile == null)
+            {
+                return;
+            }
+
+            _manifestProfileEditor = Editor.CreateEditor(manifestProfile);
+            _content.Add(
+                new InspectorElement(_manifestProfileEditor)
+                {
+                    style =
+                    {
+                        flexGrow = 1
+                    }
+                }
+            );
+        }
+
+        private void DestroyManifestProfileEditor()
+        {
+            if (_manifestProfileEditor == null)
+            {
+                return;
+            }
+
+            DestroyImmediate(_manifestProfileEditor);
+            _manifestProfileEditor = null;
         }
 
         private void HandleNewManifestClicked()
@@ -82,6 +211,11 @@ namespace Mirov.Manifestor.Editor
             Refresh();
         }
 
+        private void HandleRefreshClicked()
+        {
+            Refresh();
+        }
+
         private void HandlePlayerSettingsClicked()
         {
             SettingsService.OpenProjectSettings("Project/Player");
@@ -90,6 +224,26 @@ namespace Mirov.Manifestor.Editor
         private void HandleBuildProfilesClicked()
         {
             EditorApplication.ExecuteMenuItem("File/Build Profiles");
+        }
+
+        private void HandleApplyManifestButtonClicked()
+        {
+            LogPipelineStartError(CustomBuildPipeline.Apply(_customBuildData.selectedManifestProfile));
+        }
+
+        private void HandleCustomBuildPipelineCompleted(
+            CustomBuildOperation operation,
+            CustomBuildPipelineStatus pipelineStatus)
+        {
+            Refresh();
+        }
+
+        private static void LogPipelineStartError(ManifestorResult result)
+        {
+            if (!result.success)
+            {
+                Debug.LogError(result.message);
+            }
         }
 
         private static List<ManifestProfileData> FindManifests()
@@ -113,6 +267,7 @@ namespace Mirov.Manifestor.Editor
         {
             public List<ManifestProfileData> manifests = new();
             public ManifestProfileSO activeManifestProfile;
+            public ManifestProfileSO selectedManifestProfile;
         }
 
         [Serializable]

@@ -20,8 +20,7 @@
         public static ProjectManifest ConvertToManifest(ManifestProfileSO profile)
         {
             var manifestorData = new ManifestorData(
-                profile.profileName,
-                profile.version
+                profile.profileName
             );
 
             var scopedRegistries = profile.packagesLists

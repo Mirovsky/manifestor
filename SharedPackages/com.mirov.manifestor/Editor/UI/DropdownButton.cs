@@ -2,6 +2,8 @@ namespace Mirov.Manifestor.Editor
 {
     using System;
     using System.Collections.Generic;
+    using UnityEditor;
+    using UnityEngine;
     using UnityEngine.UIElements;
 
     [UxmlElement]
@@ -11,7 +13,7 @@ namespace Mirov.Manifestor.Editor
         public const string mainButtonUssClassName = ussClassName + "__main-button";
         public const string arrowButtonUssClassName = ussClassName + "__arrow-button";
 
-        private readonly List<DropdownItem> _dropdownItems = new();
+        private readonly List<string> _choices = new();
         private readonly Button _mainButton;
         private readonly Button _arrowButton;
 
@@ -22,11 +24,41 @@ namespace Mirov.Manifestor.Editor
             set => _mainButton.text = value ?? string.Empty;
         }
 
+        [UxmlAttribute]
+        public List<string> choices
+        {
+            get => _choices;
+            set
+            {
+                if (ReferenceEquals(value, _choices))
+                {
+                    UpdateArrowButtonState();
+                    return;
+                }
+
+                _choices.Clear();
+                if (value != null)
+                {
+                    foreach (var choice in value)
+                    {
+                        if (!string.IsNullOrWhiteSpace(choice))
+                        {
+                            _choices.Add(choice);
+                        }
+                    }
+                }
+
+                UpdateArrowButtonState();
+            }
+        }
+
         public event Action clicked
         {
             add => _mainButton.clicked += value;
             remove => _mainButton.clicked -= value;
         }
+
+        public event Action<string> choiceSelected;
 
         public DropdownButton()
         {
@@ -57,54 +89,25 @@ namespace Mirov.Manifestor.Editor
             Add(_arrowButton);
         }
 
-        public void AddDropdownItem(string label, Action action)
-        {
-            if (string.IsNullOrWhiteSpace(label))
-            {
-                throw new ArgumentException("Dropdown item label cannot be empty.", nameof(label));
-            }
-
-            if (action == null)
-            {
-                throw new ArgumentNullException(nameof(action));
-            }
-
-            _dropdownItems.Add(new DropdownItem(label, action));
-            _arrowButton.SetEnabled(true);
-        }
-
-        public void ClearDropdownItems()
-        {
-            _dropdownItems.Clear();
-            _arrowButton.SetEnabled(false);
-        }
-
         private void ShowDropdown()
         {
-            if (_dropdownItems.Count == 0 || panel == null)
+            if (_choices.Count == 0 || panel == null)
             {
                 return;
             }
 
-            var menu = new GenericDropdownMenu();
-            foreach (var item in _dropdownItems)
+            var menu = new GenericMenu();
+            foreach (var choice in _choices)
             {
-                menu.AddItem(item.label, false, item.action);
+                menu.AddItem(new GUIContent(choice), false, () => choiceSelected?.Invoke(choice));
             }
 
-            menu.DropDown(_arrowButton.worldBound, _arrowButton, DropdownMenuSizeMode.Auto);
+            menu.DropDown(_mainButton.worldBound);
         }
 
-        private readonly struct DropdownItem
+        private void UpdateArrowButtonState()
         {
-            public readonly string label;
-            public readonly Action action;
-
-            public DropdownItem(string label, Action action)
-            {
-                this.label = label;
-                this.action = action;
-            }
+            _arrowButton?.SetEnabled(_choices.Count > 0);
         }
     }
 }

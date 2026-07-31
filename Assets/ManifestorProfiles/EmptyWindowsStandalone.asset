@@ -10,9 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9ea0e60a4a13420bb4e29eea502fa7d8, type: 3}
-  m_Name: LinuxStandalone
-  m_EditorClassIdentifier: mirov.manifestor.editor::Mirov.Manifestor.Editor.ManifestProfileSO
-  _profileName: LinuxStandalone
-  _buildProfile: {fileID: 0}
-  _packageLists: []
+  m_Name: EmptyWindowsStandalone
+  m_EditorClassIdentifier: 
+  _profileName: EmptyWindowsStandalone
+  _buildProfile: {fileID: 11400000, guid: 3d24a05d8b86ffd4a8499a166902014a, type: 2}
+  _packageLists:
+  - {fileID: 11400000, guid: 553f09c3a69ea244cab5e0907d93a9fe, type: 2}
+  - {fileID: 11400000, guid: 665b97a057cf45b087eb972388a51005, type: 2}
   _version: 0

@@ -79,15 +79,10 @@ public struct ManifestorData
     [JsonProperty("name")]
     private string _name;
 
-    [JsonProperty("version")]
-    private int _version;
-
     public string name => _name;
-    public int version => _version;
 
-    public ManifestorData(string name, int version)
+    public ManifestorData(string name)
     {
         _name = name;
-        _version = version;
     }
 }

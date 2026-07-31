@@ -11,7 +11,7 @@ namespace Mirov.Manifestor.Editor
     {
         [SerializeField] private VisualTreeAsset _migrationToolAsset;
 
-        private readonly MigrationRows _migrationRows = new();
+        private readonly ViewDataModel _viewDataModel = new();
 
         [MenuItem("Tools/Manifestor/Migrate Package Manifest")]
         public static void ShowWindow()
@@ -26,7 +26,7 @@ namespace Mirov.Manifestor.Editor
             _migrationToolAsset.CloneTree(rootVisualElement);
 
             var listView = rootVisualElement.Q<ListView>("ContentListView");
-            listView.itemsSource = _migrationRows.rows;
+            listView.itemsSource = _viewDataModel.rows;
 
             var newPackageListButton = rootVisualElement.Q<Button>("NewPackageListButton");
             var applyButton = rootVisualElement.Q<Button>("ApplyButton");
@@ -38,65 +38,14 @@ namespace Mirov.Manifestor.Editor
 
         private void HandleNewPackageListButtonClicked()
         {
-            var assetPath = EditorUtility.SaveFilePanelInProject(
-                "Create Packages List",
-                "PackagesList",
-                "asset",
-                "Select where to create the packages list.");
-            if (string.IsNullOrEmpty(assetPath))
-            {
-                return;
-            }
+            PackagesListUtils.CreateNewPackageList();
 
-            var packageList = CreateInstance<PackagesListSO>();
-            AssetDatabase.CreateAsset(packageList, assetPath);
-            Undo.RegisterCreatedObjectUndo(packageList, "Create Packages List");
-            AssetDatabase.SaveAssets();
             Refresh();
         }
 
         private void HandleApplyButtonClicked()
         {
-            var selectedChanges = _migrationRows.rows
-                .Where(row => row.targets != null)
-                .SelectMany(row => row.targets
-                    .Where(target => target != null && target.selected && target.packageList != null)
-                    .Select(target => new SelectedChange(row.change, target.packageList)))
-                .ToLookup(selectedChange => selectedChange.packageList);
-            var packageLists = FindPackageLists();
-            var scopedRegistries = ManifestorIO.LoadExistingManifest()?.scopedRegistries
-                                   ?? Array.Empty<ScopedManifestRegistry>();
-
-            var undoGroup = Undo.GetCurrentGroup();
-            Undo.SetCurrentGroupName("Apply Package Manifest Migration");
-            var hasChanges = false;
-
-            foreach (var packageListTarget in packageLists)
-            {
-                var packageList = packageListTarget.packageList;
-                Undo.RecordObject(packageList, "Apply Package Manifest Migration");
-
-                var packageListChanged = selectedChanges[packageList]
-                    .Aggregate(false, (current, selectedChange) => current | ApplyChange(packageList, selectedChange.change));
-                packageListChanged |= scopedRegistries
-                    .Where(scopedRegistry => UsesScopedRegistry(packageList, scopedRegistry))
-                    .Aggregate(false, (current, scopedRegistry) => current | packageList.AddScopedRegistry(scopedRegistry.name, scopedRegistry.url, scopedRegistry.scopes));
-
-                if (!packageListChanged)
-                {
-                    continue;
-                }
-
-                EditorUtility.SetDirty(packageList);
-                hasChanges = true;
-            }
-
-            Undo.CollapseUndoOperations(undoGroup);
-
-            if (hasChanges)
-            {
-                AssetDatabase.SaveAssets();
-            }
+            PackagesListUtils.ApplyPackageListChanges(_viewDataModel.rows);
 
             GetWindow<ManifestorMigrateTool>().Close();
         }
@@ -108,7 +57,7 @@ namespace Mirov.Manifestor.Editor
 
         private void Refresh()
         {
-            var selectedStates = _migrationRows.rows
+            var selectedStates = _viewDataModel.rows
                 .Where(row => row.targets != null)
                 .SelectMany(row => row.targets
                     .Where(target => target != null)
@@ -119,7 +68,7 @@ namespace Mirov.Manifestor.Editor
                     }))
                 .ToDictionary(selection => selection.key, selection => selection.selected);
             var diff = ManifestPackageDiffUtility.CreateManifestDiff();
-            var packageLists = FindPackageLists();
+            var packageLists = PackagesListUtils.FindPackageLists();
             var rows = BuildRows(diff.allChanges, packageLists);
 
             foreach (var row in rows)
@@ -133,15 +82,14 @@ namespace Mirov.Manifestor.Editor
                 }
             }
 
-            _migrationRows.rows.Clear();
-            _migrationRows.rows.AddRange(rows);
+            _viewDataModel.rows.Clear();
+            _viewDataModel.rows.AddRange(rows);
 
             rootVisualElement.Q<ListView>("ContentListView")?.RefreshItems();
             Repaint();
         }
 
-        private static (string packageTechnicalName, string manifestValue, string packageListValue, ManifestPackageChangeKind changeKind, string assetPath)
-            CreateSelectionKey(ManifestPackageDiffEntry change, string assetPath)
+        private static (string packageTechnicalName, string manifestValue, string packageListValue, ManifestPackageChangeKind changeKind, string assetPath) CreateSelectionKey(ManifestPackageDiffEntry change, string assetPath)
         {
             return (
                 change.packageTechnicalName,
@@ -149,16 +97,6 @@ namespace Mirov.Manifestor.Editor
                 change.packageListValue,
                 change.changeKind,
                 assetPath ?? string.Empty);
-        }
-
-        private static PackageListTarget[] FindPackageLists()
-        {
-            return AssetDatabase.FindAssets("t:PackagesListSO")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .Select(path => new PackageListTarget(AssetDatabase.LoadAssetAtPath<PackagesListSO>(path), path))
-                .Where(target => target.packageList != null)
-                .ToArray();
         }
 
         private static IReadOnlyList<MigrationRow> BuildRows(IEnumerable<ManifestPackageDiffEntry> changes, IReadOnlyList<PackageListTarget> packageLists)
@@ -203,56 +141,13 @@ namespace Mirov.Manifestor.Editor
                 string.Equals(Normalize(package.location), change.packageListValue, StringComparison.Ordinal));
         }
 
-        private static bool ApplyChange(PackagesListSO packageList, ManifestPackageDiffEntry change)
-        {
-            switch (change.changeKind)
-            {
-                case ManifestPackageChangeKind.MissingInPackageLists:
-                    return packageList.AddPackage(change.packageTechnicalName, change.manifestValue);
-                case ManifestPackageChangeKind.RemovedFromManifest:
-                    return packageList.RemovePackage(change.packageTechnicalName, change.packageListValue);
-                case ManifestPackageChangeKind.Changed:
-                    return packageList.UpdatePackage(change.packageTechnicalName, change.packageListValue, change.manifestValue);
-                default:
-                    return false;
-            }
-        }
-
-        private static bool UsesScopedRegistry(PackagesListSO packageList, ScopedManifestRegistry scopedRegistry)
-        {
-            if (packageList.packages == null || scopedRegistry.scopes == null)
-            {
-                return false;
-            }
-
-            return packageList.packages
-                .Where(package => package != null)
-                .Select(package => Normalize(package.packageName))
-                .Any(packageName => scopedRegistry.scopes
-                    .Select(Normalize)
-                    .Where(scope => !string.IsNullOrEmpty(scope))
-                    .Any(scope => packageName.StartsWith(scope, StringComparison.Ordinal)));
-        }
-
         private static string Normalize(string value)
         {
             return (value ?? string.Empty).Trim();
         }
 
-        private readonly struct SelectedChange
-        {
-            public readonly ManifestPackageDiffEntry change;
-            public readonly PackagesListSO packageList;
-
-            public SelectedChange(ManifestPackageDiffEntry change, PackagesListSO packageList)
-            {
-                this.change = change;
-                this.packageList = packageList;
-            }
-        }
-
         [Serializable]
-        public class MigrationRows
+        private class ViewDataModel
         {
             public List<MigrationRow> rows = new();
         }
@@ -267,19 +162,6 @@ namespace Mirov.Manifestor.Editor
             {
                 this.change = change;
                 this.targets = targets ?? new List<PackageListSelection>();
-            }
-        }
-
-        [Serializable]
-        public struct PackageListTarget
-        {
-            public PackagesListSO packageList;
-            public string assetPath;
-
-            public PackageListTarget(PackagesListSO packageList, string assetPath)
-            {
-                this.packageList = packageList;
-                this.assetPath = assetPath ?? string.Empty;
             }
         }
 

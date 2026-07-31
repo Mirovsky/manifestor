@@ -24,7 +24,6 @@ namespace Mirov.Manifestor.Editor
                 ManifestorIO.SaveManifest(newManifest);
 
                 ManifestorEditorPrefs.SetLastAppliedProfile(profilePath);
-                ManifestorEditorPrefs.SetLastAppliedManifestHash(ManifestorIO.CalculateManifestHash(newManifest));
 
                 Client.Resolve();
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);

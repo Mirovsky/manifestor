@@ -34,11 +34,6 @@ namespace Mirov.Manifestor.Editor
                 errors.Add($"Unity Build Profile assigned to manifest profile '{profile.name}' must be saved as a project asset.");
             }
 
-            if (profile.version < 0)
-            {
-                errors.Add("Profile version cannot be negative.");
-            }
-
             ValidatePackageLists(profile.packagesLists, errors);
             return errors.Count == 0 ? ManifestorResult.Ok() : CreateError(errors);
         }

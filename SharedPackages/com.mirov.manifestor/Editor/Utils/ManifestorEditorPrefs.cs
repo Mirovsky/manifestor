@@ -5,22 +5,24 @@ namespace Mirov.Manifestor.Editor
     public static class ManifestorEditorPrefs
     {
         private const string LastAppliedProfilePathKey = "Mirov.Manifestor.LastAppliedProfilePath";
-        private const string LastAppliedManifestHashKey = "Mirov.Manifestor.LastAppliedManifestHash";
+        private const string LastAppliedProfileFingerprintKey = "Mirov.Manifestor.LastAppliedProfileFingerprint";
+        private const string LegacyLastAppliedManifestHashKey = "Mirov.Manifestor.LastAppliedManifestHash";
 
         public static void SetLastAppliedProfile(string assetPath)
         {
             EditorPrefs.SetString(LastAppliedProfilePathKey, assetPath ?? string.Empty);
         }
 
-        public static void SetLastAppliedManifestHash(string manifestHash)
+        public static void SetLastAppliedProfileFingerprint(string profileFingerprint)
         {
-            EditorPrefs.SetString(LastAppliedManifestHashKey, manifestHash ?? string.Empty);
+            EditorPrefs.SetString(LastAppliedProfileFingerprintKey, profileFingerprint ?? string.Empty);
         }
 
         public static void ClearLastAppliedProfile()
         {
             EditorPrefs.DeleteKey(LastAppliedProfilePathKey);
-            EditorPrefs.DeleteKey(LastAppliedManifestHashKey);
+            EditorPrefs.DeleteKey(LastAppliedProfileFingerprintKey);
+            EditorPrefs.DeleteKey(LegacyLastAppliedManifestHashKey);
         }
 
         public static bool TryGetLastAppliedProfilePath(out string assetPath)
@@ -30,11 +32,11 @@ namespace Mirov.Manifestor.Editor
             return !string.IsNullOrEmpty(assetPath);
         }
 
-        public static bool TryGetLastAppliedManifestHash(out string manifestHash)
+        public static bool TryGetLastAppliedProfileFingerprint(out string profileFingerprint)
         {
-            manifestHash = EditorPrefs.GetString(LastAppliedManifestHashKey, string.Empty);
+            profileFingerprint = EditorPrefs.GetString(LastAppliedProfileFingerprintKey, string.Empty);
 
-            return !string.IsNullOrEmpty(manifestHash);
+            return !string.IsNullOrEmpty(profileFingerprint);
         }
     }
 }
