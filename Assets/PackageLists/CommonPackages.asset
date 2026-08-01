@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: CommonPackages
   m_EditorClassIdentifier: 
   _packages:
-  - _packageName: com.mirov.manifestor
-    _location: file:../SharedPackages/com.mirov.manifestor
+  - _packageName: com.mirovsky.manifestor
+    _location: file:../SharedPackages/com.mirovsky.manifestor
   _defines: []
   _scopedRegistries: []

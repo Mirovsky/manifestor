@@ -1,0 +1,7 @@
+.manifest-profile-item {
+    display: none;
+}
+
+.manifest-profile-item__active {
+    display: flex;
+}

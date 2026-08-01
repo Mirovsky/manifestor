@@ -1,0 +1,15 @@
+<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+    <Style src="project://database/Packages/com.mirovsky.manifestor/UI/ManifestorStyles.uss?fileID=7433441132597879392&amp;guid=4e779a97f5705704797dcfeeb2528496&amp;type=3#ManifestorStyles"/>
+    <uie:Toolbar style="justify-content: flex-end;">
+        <uie:ToolbarButton text="New Packages List" name="NewPackageListButton" icon-image="project://database/Packages/com.unity.ai.assistant/Editor/UI/Assets/icons/Plus.png?fileID=2800000&amp;guid=417a8b4f0629d164f98ee51563005405&amp;type=3#Plus" style="margin-left: -1px; padding-bottom: 3px; padding-top: 3px; padding-left: 0;"/>
+        <ui:VisualElement style="flex-grow: 1; flex-direction: row; justify-content: flex-end;">
+            <uie:ToolbarButton text="Apply Changes" name="ApplyButton"/>
+            <uie:ToolbarButton text="" icon-image="project://database/Packages/com.unity.ai.assistant/Editor/UI/Assets/icons/Refresh.png?fileID=2800000&amp;guid=d4ec5054f34167e46b8b3c36f080bbfa&amp;type=3#Refresh" name="RefreshButton" style="padding-top: 3px; padding-left: 3px; padding-bottom: 3px; padding-right: 3px;"/>
+        </ui:VisualElement>
+    </uie:Toolbar>
+    <ui:HelpBox text="Your ManifestProfiles and current manifest.json differ. Pick what you want to do with each added/removed or modified entry. It will be overwritten on next editor load." message-type="Warning" data-source-path="" style="margin-top: 2px; margin-bottom: 2px;"/>
+    <ui:VisualElement name="ContentList" style="flex-grow: 1;">
+        <ui:ListView name="ContentListView" virtualization-method="DynamicHeight" binding-source-selection-mode="AutoAssign" show-bound-collection-size="true" data-source-path="rows" item-template="project://database/Packages/com.mirovsky.manifestor/UI/PackageItem.uxml?fileID=9197481963319205126&amp;guid=6b9f2b78be20e8f46b9bcb9cf6703013&amp;type=3#PackageItem" allow-add="false" allow-remove="false" selection-type="None" show-alternating-row-backgrounds="All" data-source-type="Manifestor.UI.ManifestorMigrateTool+ViewDataModel, com.mirovsky.manifestor"/>
+        <ui:Label text="No migration required." name="EmptyContentList" style="position: absolute; width: 100%; height: 100%; -unity-text-align: middle-center; color: rgb(173, 173, 173);"/>
+    </ui:VisualElement>
+</ui:UXML>
