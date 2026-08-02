@@ -4,9 +4,9 @@ namespace Manifestor
 {
     public static class ManifestorEditorPrefs
     {
-        private const string LastAppliedProfilePathKey = "Mirov.Manifestor.LastAppliedProfilePath";
-        private const string LastAppliedProfileFingerprintKey = "Mirov.Manifestor.LastAppliedProfileFingerprint";
-        private const string LegacyLastAppliedManifestHashKey = "Mirov.Manifestor.LastAppliedManifestHash";
+        private const string LastAppliedProfilePathKey = "Manifestor.LastAppliedProfilePath";
+        private const string LastAppliedProfileFingerprintKey = "Manifestor.LastAppliedProfileFingerprint";
+        private const string LegacyLastAppliedManifestHashKey = "Manifestor.LastAppliedManifestHash";
 
         public static void SetLastAppliedProfile(string assetPath)
         {

@@ -2,6 +2,7 @@ namespace Manifestor.Build
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using UnityEditor;
     using UnityEngine;
@@ -25,7 +26,7 @@ namespace Manifestor.Build
     [InitializeOnLoad]
     public static class CustomBuildPipeline
     {
-        private const string StateKey = "Mirov.Manifestor.CustomBuildPipeline.State";
+        private const string StateKey = "Manifestor.CustomBuildPipeline.State";
         private const long StepDelayTicks = TimeSpan.TicksPerSecond;
 
         private static bool _isUpdateQueued;
@@ -52,20 +53,22 @@ namespace Manifestor.Build
 
         public static ManifestorResult Apply(ManifestProfileSO profile)
         {
-            return Start(profile, CustomBuildOperation.Apply, default);
+            return Start(profile, CustomBuildOperation.Apply, string.Empty, BuildOptions.None);
         }
 
         public static ManifestorResult Build(
             ManifestProfileSO profile,
-            BuildPlayerOptions buildPlayerOptions = default)
+            string outputFolderPath,
+            BuildOptions options = BuildOptions.None)
         {
-            return Start(profile, CustomBuildOperation.Build, buildPlayerOptions);
+            return Start(profile, CustomBuildOperation.Build, outputFolderPath, options);
         }
 
         private static ManifestorResult Start(
             ManifestProfileSO profile,
             CustomBuildOperation operation,
-            BuildPlayerOptions buildPlayerOptions)
+            string outputFolderPath,
+            BuildOptions options)
         {
             var currentState = LoadState();
             if (currentState.isActive || BuildPipeline.isBuildingPlayer)
@@ -77,6 +80,11 @@ namespace Manifestor.Build
             if (!profileValidation.success)
             {
                 return profileValidation;
+            }
+
+            if (operation == CustomBuildOperation.Build && string.IsNullOrWhiteSpace(outputFolderPath))
+            {
+                return ManifestorResult.Error("Build output folder cannot be empty.");
             }
 
             var profilePath = AssetDatabase.GetAssetPath(profile);
@@ -109,6 +117,18 @@ namespace Manifestor.Build
                 return ManifestorResult.Error($"Failed to calculate manifest profile fingerprint: {exception.Message}");
             }
 
+            BuildPlayerOptions buildPlayerOptions;
+            try
+            {
+                buildPlayerOptions = operation == CustomBuildOperation.Build
+                    ? CreateBuildPlayerOptions(profile, outputFolderPath, options)
+                    : default;
+            }
+            catch (Exception exception)
+            {
+                return ManifestorResult.Error($"Failed to create build player options: {exception.Message}");
+            }
+
             var state = new PipelineState
             {
                 isActive = true,
@@ -128,6 +148,33 @@ namespace Manifestor.Build
             SaveState(state);
             QueueUpdate();
             return ManifestorResult.Ok();
+        }
+
+        private static BuildPlayerOptions CreateBuildPlayerOptions(
+            ManifestProfileSO profile,
+            string outputFolderPath,
+            BuildOptions options)
+        {
+            var buildTarget = BuildProfileUtility.GetBuildTarget(profile.buildProfile);
+            var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
+
+            var extension = buildTarget switch
+            {
+                BuildTarget.StandaloneWindows or BuildTarget.StandaloneWindows64 => ".exe",
+                BuildTarget.StandaloneOSX => ".app",
+                _ => string.Empty
+            };
+
+            var buildLocation = Path.Combine(outputFolderPath, PlayerSettings.productName + extension);
+
+            return new BuildPlayerOptions
+            {
+                target = buildTarget,
+                targetGroup = buildTargetGroup,
+                locationPathName = buildLocation,
+                assetBundleManifestPath = UnityEditorInternalApi.GetStreamingAssetsBundleManifestPath(),
+                options = UnityEditorInternalApi.GetBuildOptions(buildTarget, buildTargetGroup, buildLocation, options) | options
+            };
         }
 
         private static void QueueUpdate()
