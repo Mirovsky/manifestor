@@ -27,7 +27,7 @@ namespace Manifestor
                 return;
             }
 
-            if (!ManifestorEditorPrefs.TryGetLastAppliedProfilePath(out var profilePath))
+            if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var profilePath))
             {
                 return;
             }
@@ -57,7 +57,7 @@ namespace Manifestor
                 return;
             }
 
-            if (ManifestorEditorPrefs.TryGetLastAppliedProfileFingerprint(out var savedProfileFingerprint) &&
+            if (ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out var savedProfileFingerprint) &&
                 string.Equals(currentProfileFingerprint, savedProfileFingerprint, StringComparison.Ordinal))
             {
                 return;

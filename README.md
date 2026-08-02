@@ -166,11 +166,8 @@ using UnityEditor;
 ManifestorResult applyResult = CustomBuildPipeline.Apply(profile);
 ManifestorResult buildResult = CustomBuildPipeline.Build(
     profile,
-    new BuildPlayerOptions
-    {
-        locationPathName = outputPath,
-        options = BuildOptions.CleanBuildCache
-    });
+    outputFolder,
+    BuildOptions.CleanBuildCache);
 
 if (!buildResult.success)
 {

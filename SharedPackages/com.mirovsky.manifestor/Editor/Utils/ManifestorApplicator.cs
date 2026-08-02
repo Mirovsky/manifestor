@@ -54,8 +54,7 @@ namespace Manifestor
 
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
 
-                ManifestorEditorPrefs.SetLastAppliedProfile(state.profilePath);
-                ManifestorEditorPrefs.SetLastAppliedProfileFingerprint(state.profileFingerprint);
+                ManifestorSettings.instance.SetLastAppliedManifest(state.profilePath, state.profileFingerprint);
                 ClearState();
 
                 return CustomBuildStepResult.Succeeded($"Applied manifest profile '{profile.profileName}'.");
@@ -94,8 +93,8 @@ namespace Manifestor
                         : AssetDatabase.GetAssetPath(activeBuildProfile),
                     definesBuildTarget = (int)buildTarget,
                     previousDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget),
-                    hadPreviousAppliedProfile = ManifestorEditorPrefs.TryGetLastAppliedProfilePath(out state.previousAppliedProfilePath),
-                    hadPreviousFingerprint = ManifestorEditorPrefs.TryGetLastAppliedProfileFingerprint(out state.previousFingerprint)
+                    hadPreviousAppliedProfile = ManifestorSettings.instance.TryGetLastAppliedProfilePath(out state.previousAppliedProfilePath),
+                    hadPreviousFingerprint = ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out state.previousFingerprint)
                 };
 
                 SaveState(state);
@@ -169,7 +168,7 @@ namespace Manifestor
 
             try
             {
-                ManifestorEditorPrefs.RestoreLastAppliedProfile(
+                ManifestorSettings.instance.RestoreLastAppliedProfile(
                     state.hadPreviousAppliedProfile,
                     state.previousAppliedProfilePath,
                     state.hadPreviousFingerprint,

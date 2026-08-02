@@ -276,7 +276,7 @@ namespace Manifestor.UI
 
         private static List<ManifestProfileData> FindManifests()
         {
-            ManifestorEditorPrefs.TryGetLastAppliedProfilePath(out var profilePath);
+            ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var profilePath);
 
             return AssetDatabase.FindAssets("t:ManifestProfileSO")
                 .Select(AssetDatabase.GUIDToAssetPath)
