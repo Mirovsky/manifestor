@@ -98,6 +98,7 @@ namespace Manifestor.Build
         {
             orderedSteps = new List<Type>();
             error = string.Empty;
+
             var stepTypes = TypeCache.GetTypesWithAttribute<CustomBuildStepAttribute>()
                 .Where(type => includeStep == null || includeStep(type))
                 .OrderBy(type => type.AssemblyQualifiedName, StringComparer.Ordinal)
@@ -120,9 +121,10 @@ namespace Manifestor.Build
                     return false;
                 }
 
-                foreach (var attribute in stepType
-                             .GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
-                             .Cast<CustomBuildStepAttribute>())
+                var attributes = stepType
+                    .GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
+                    .Cast<CustomBuildStepAttribute>();
+                foreach (var attribute in attributes)
                 {
                     if (!attribute.hasConstraint)
                     {

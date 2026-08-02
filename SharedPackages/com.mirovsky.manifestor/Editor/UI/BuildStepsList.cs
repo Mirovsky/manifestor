@@ -1,6 +1,8 @@
 namespace Manifestor.UI
 {
     using System.Collections.Generic;
+    using System.Linq;
+    using Build;
     using UnityEngine.UIElements;
 
     [UxmlElement]
@@ -16,7 +18,7 @@ namespace Manifestor.UI
                 style =
                 {
                     display = DisplayStyle.Flex,
-                    flexDirection = FlexDirection.Row
+                    flexDirection = FlexDirection.Column
                 }
             };
             _errorLabel = new Label
@@ -43,16 +45,25 @@ namespace Manifestor.UI
                 return;
             }
 
+            var previousApply = true;
+
+            var texts = new List<string>();
             for (var index = 0; index < steps.Count; index++)
             {
-                var text = StringUtils.ToDisplayName(steps[index].ToString());
-                if (index < steps.Count - 1)
-                {
-                    text += " > ";
+                var step = steps[index];
+                var isApply = step.GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
+                    .Cast<CustomBuildStepAttribute>()
+                    .Any(a => a.runDuringApply);
+
+                if (previousApply != isApply) {
+                    _contentContainer.Add(new Label("<color=#A6A6A6>Apply Steps:</color> " + string.Join(" > ", texts)));
+                    texts.Clear();
                 }
 
-                _contentContainer.Add(new Label(text));
+                texts.Add(StringUtils.ToDisplayName(steps[index].ToString()));
+                previousApply = isApply;
             }
+            _contentContainer.Add(new Label("<color=#A6A6A6>Build Steps:</color> " + string.Join(" > ", texts)));
         }
     }
 }
