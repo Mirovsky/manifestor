@@ -1,0 +1,13 @@
+fileFormatVersion: 2
+guid: b5ca3f08217a4ff1a6d9c65c5a0dced9
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - m_ViewDataDictionary: {instanceID: 0}
+  - _migrationToolAsset: {fileID: 9197481963319205126, guid: 90b85cbe1fdf70b4295fd620ec9f848f, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
