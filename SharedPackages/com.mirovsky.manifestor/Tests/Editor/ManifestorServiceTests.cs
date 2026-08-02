@@ -1,7 +1,5 @@
 namespace Manifestor.Editor.Tests
 {
-    using System;
-    using System.IO;
     using Build;
     using Newtonsoft.Json;
     using NUnit.Framework;
@@ -52,71 +50,6 @@ namespace Manifestor.Editor.Tests
         }
 
         [Test]
-        public void BuildDirectoryPath_UsesProfileNameBelowSelectedRoot()
-        {
-            var root = Path.Combine(Path.GetTempPath(), "ManifestorBuildRoot");
-
-            var result = BuildOutputDirectoryUtility.GetBuildDirectoryPath("Windows", root);
-
-            Assert.That(result, Is.EqualTo(Path.GetFullPath(Path.Combine(root, "Windows"))));
-        }
-
-        [TestCase(".")]
-        [TestCase("..")]
-        [TestCase("Platform/Child")]
-        public void BuildDirectoryPath_RejectsInvalidProfileName(string profileName)
-        {
-            Assert.That(
-                () => BuildOutputDirectoryUtility.GetBuildDirectoryPath(profileName, Path.GetTempPath()),
-                Throws.ArgumentException);
-        }
-
-        [Test]
-        public void PrepareOwnedDirectory_RefusesUnownedContents()
-        {
-            var root = CreateTemporaryRoot();
-            try
-            {
-                var buildDirectory = Path.Combine(root, "Windows");
-                Directory.CreateDirectory(buildDirectory);
-                File.WriteAllText(Path.Combine(buildDirectory, "user-file.txt"), "keep");
-
-                Assert.That(
-                    () => BuildOutputDirectoryUtility.PrepareOwnedDirectory("Windows", root, "profile-guid", clean: true),
-                    Throws.InvalidOperationException);
-                Assert.That(File.Exists(Path.Combine(buildDirectory, "user-file.txt")), Is.True);
-            }
-            finally
-            {
-                Directory.Delete(root, recursive: true);
-            }
-        }
-
-        [Test]
-        public void PrepareOwnedDirectory_CleanRemovesOnlyOwnedFolderContents()
-        {
-            var root = CreateTemporaryRoot();
-            try
-            {
-                var buildDirectory = BuildOutputDirectoryUtility.PrepareOwnedDirectory(
-                    "Windows", root, "profile-guid", clean: false);
-                var staleFile = Path.Combine(buildDirectory, "stale.txt");
-                File.WriteAllText(staleFile, "stale");
-
-                var result = BuildOutputDirectoryUtility.PrepareOwnedDirectory(
-                    "Windows", root, "profile-guid", clean: true);
-
-                Assert.That(result, Is.EqualTo(buildDirectory));
-                Assert.That(File.Exists(staleFile), Is.False);
-                Assert.That(Directory.Exists(buildDirectory), Is.True);
-            }
-            finally
-            {
-                Directory.Delete(root, recursive: true);
-            }
-        }
-
-        [Test]
         public void CustomBuildStepResult_WaitingIsNotSuccessful()
         {
             var result = CustomBuildStepResult.Waiting("Resolving");
@@ -150,13 +83,6 @@ namespace Manifestor.Editor.Tests
 
             serializedObject.ApplyModifiedPropertiesWithoutUndo();
             return profile;
-        }
-
-        private static string CreateTemporaryRoot()
-        {
-            var path = Path.Combine(Path.GetTempPath(), "ManifestorTests", Guid.NewGuid().ToString("N"));
-            Directory.CreateDirectory(path);
-            return path;
         }
     }
 }

@@ -34,7 +34,6 @@ namespace Manifestor.UI
                 if (!ReferenceEquals(value, _choices))
                 {
                     _choices = value;
-                    return;
                 }
 
                 UpdateArrowButtonState();

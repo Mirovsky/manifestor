@@ -4,6 +4,7 @@ namespace Manifestor.UI
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
     using System.Linq;
     using Build;
     using UnityEditor;
@@ -77,25 +78,41 @@ namespace Manifestor.UI
         private void HandleDefaultBuildButtonClicked()
         {
             var profile = _customBuildData.selectedManifestProfile;
-            var folderPath = EditorUtility.SaveFolderPanel("Build output root folder", "", "");
+            if (profile?.buildProfile == null)
+            {
+                LogPipelineStartError(CustomBuildPipeline.Build(profile));
+                return;
+            }
+
+            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
             if (string.IsNullOrEmpty(folderPath))
             {
                 return;
             }
 
-            LogPipelineStartError(CustomBuildPipeline.Build(profile, folderPath));
+            LogPipelineStartError(CustomBuildPipeline.Build(
+                profile,
+                CreateBuildPlayerOptions(profile, folderPath, BuildOptions.None)));
         }
 
         private void HandleCleanBuildButtonClicked()
         {
             var profile = _customBuildData.selectedManifestProfile;
-            var folderPath = EditorUtility.SaveFolderPanel("Build output root folder", "", "");
+            if (profile?.buildProfile == null)
+            {
+                LogPipelineStartError(CustomBuildPipeline.Build(profile));
+                return;
+            }
+
+            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
             if (string.IsNullOrEmpty(folderPath))
             {
                 return;
             }
 
-            LogPipelineStartError(CustomBuildPipeline.Build(profile, folderPath, BuildOptions.CleanBuildCache));
+            LogPipelineStartError(CustomBuildPipeline.Build(
+                profile,
+                CreateBuildPlayerOptions(profile, folderPath, BuildOptions.CleanBuildCache)));
         }
 
         private void HandleBuildChoiceSelected(string choice)
@@ -258,6 +275,26 @@ namespace Manifestor.UI
             {
                 Debug.LogError(result.message);
             }
+        }
+
+        private static BuildPlayerOptions CreateBuildPlayerOptions(
+            ManifestProfileSO profile,
+            string outputFolderPath,
+            BuildOptions options)
+        {
+            var buildTarget = BuildProfileUtility.GetBuildTarget(profile.buildProfile);
+            var extension = buildTarget switch
+            {
+                BuildTarget.StandaloneWindows or BuildTarget.StandaloneWindows64 => ".exe",
+                BuildTarget.StandaloneOSX => ".app",
+                _ => string.Empty
+            };
+
+            return new BuildPlayerOptions
+            {
+                locationPathName = Path.Combine(outputFolderPath, PlayerSettings.productName + extension),
+                options = options
+            };
         }
 
         private static List<ManifestProfileData> FindManifests()

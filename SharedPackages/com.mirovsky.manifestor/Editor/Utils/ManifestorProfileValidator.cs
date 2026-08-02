@@ -26,10 +26,6 @@ namespace Manifestor
             {
                 errors.Add("Profile name is required.");
             }
-            else if (!BuildOutputDirectoryUtility.IsValidDirectoryName(profile.profileName))
-            {
-                errors.Add("Profile name must be a valid single directory name.");
-            }
 
             if (profile.buildProfile == null)
             {

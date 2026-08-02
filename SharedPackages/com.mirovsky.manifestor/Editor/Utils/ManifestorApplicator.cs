@@ -53,9 +53,11 @@ namespace Manifestor
                 }
 
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+
                 ManifestorEditorPrefs.SetLastAppliedProfile(state.profilePath);
                 ManifestorEditorPrefs.SetLastAppliedProfileFingerprint(state.profileFingerprint);
                 ClearState();
+
                 return CustomBuildStepResult.Succeeded($"Applied manifest profile '{profile.profileName}'.");
             }
             catch (Exception exception)
@@ -67,6 +69,7 @@ namespace Manifestor
         private static CustomBuildStepResult Begin(ManifestProfileSO profile, out ApplyState state)
         {
             state = new ApplyState();
+
             var validation = ManifestorProfileValidator.Validate(profile);
             if (!validation.success)
             {
@@ -90,14 +93,13 @@ namespace Manifestor
                         ? string.Empty
                         : AssetDatabase.GetAssetPath(activeBuildProfile),
                     definesBuildTarget = (int)buildTarget,
-                    previousDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget)
+                    previousDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget),
+                    hadPreviousAppliedProfile = ManifestorEditorPrefs.TryGetLastAppliedProfilePath(out state.previousAppliedProfilePath),
+                    hadPreviousFingerprint = ManifestorEditorPrefs.TryGetLastAppliedProfileFingerprint(out state.previousFingerprint)
                 };
-                state.hadPreviousAppliedProfile = ManifestorEditorPrefs.TryGetLastAppliedProfilePath(
-                    out state.previousAppliedProfilePath);
-                state.hadPreviousFingerprint = ManifestorEditorPrefs.TryGetLastAppliedProfileFingerprint(
-                    out state.previousFingerprint);
 
                 SaveState(state);
+
                 BuildProfile.SetActiveBuildProfile(profile.buildProfile);
                 ManifestorIO.SaveManifest(ManifestorIO.ConvertToManifest(profile));
                 ApplyExactScriptingDefines(profile, namedBuildTarget);
@@ -157,8 +159,7 @@ namespace Manifestor
             try
             {
                 PlayerSettings.SetScriptingDefineSymbols(
-                    NamedBuildTarget.FromBuildTargetGroup(
-                        BuildPipeline.GetBuildTargetGroup((BuildTarget)state.definesBuildTarget)),
+                    NamedBuildTarget.FromBuildTargetGroup(BuildPipeline.GetBuildTargetGroup((BuildTarget)state.definesBuildTarget)),
                     state.previousDefines ?? string.Empty);
             }
             catch (Exception exception)

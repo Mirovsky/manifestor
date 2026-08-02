@@ -52,22 +52,20 @@ namespace Manifestor.Build
 
         public static ManifestorResult Apply(ManifestProfileSO profile)
         {
-            return Start(profile, CustomBuildOperation.Apply, string.Empty, BuildOptions.None);
+            return Start(profile, CustomBuildOperation.Apply, default);
         }
 
         public static ManifestorResult Build(
             ManifestProfileSO profile,
-            string outputDirectoryPath,
-            BuildOptions options = BuildOptions.None)
+            BuildPlayerOptions buildPlayerOptions = default)
         {
-            return Start(profile, CustomBuildOperation.Build, outputDirectoryPath, options);
+            return Start(profile, CustomBuildOperation.Build, buildPlayerOptions);
         }
 
         private static ManifestorResult Start(
             ManifestProfileSO profile,
             CustomBuildOperation operation,
-            string outputDirectoryPath,
-            BuildOptions options)
+            BuildPlayerOptions buildPlayerOptions)
         {
             var currentState = LoadState();
             if (currentState.isActive || BuildPipeline.isBuildingPlayer)
@@ -79,11 +77,6 @@ namespace Manifestor.Build
             if (!profileValidation.success)
             {
                 return profileValidation;
-            }
-
-            if (operation == CustomBuildOperation.Build && string.IsNullOrWhiteSpace(outputDirectoryPath))
-            {
-                return ManifestorResult.Error("Build output directory cannot be empty.");
             }
 
             var profilePath = AssetDatabase.GetAssetPath(profile);
@@ -126,8 +119,7 @@ namespace Manifestor.Build
                     : "Custom build queued.",
                 profilePath = profilePath,
                 profileFingerprint = profileFingerprint,
-                outputDirectoryPath = outputDirectoryPath,
-                options = (int)options,
+                buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions),
                 orderedStepTypeNames = orderedSteps.Select(type => type.AssemblyQualifiedName).ToList(),
                 nextStepIndex = 0,
                 resumeAfterUtcTicks = DateTime.UtcNow.Ticks
@@ -198,7 +190,9 @@ namespace Manifestor.Build
             SaveState(state);
 
             CustomBuildStepResult result;
-            var context = new CustomBuildContext(profile, state.outputDirectoryPath, (BuildOptions)state.options);
+            var context = new CustomBuildContext(
+                profile,
+                state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default);
             try
             {
                 var step = (ICustomBuildStep)Activator.CreateInstance(stepType);
@@ -212,6 +206,7 @@ namespace Manifestor.Build
 
             if (result.outcome == CustomBuildStepOutcome.Waiting)
             {
+                state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
                 state.status = CustomBuildPipelineStatus.Waiting;
                 state.message = string.IsNullOrEmpty(result.message)
                     ? $"Build step '{stepType.FullName}' is waiting."
@@ -241,8 +236,7 @@ namespace Manifestor.Build
             }
 
             state.profilePath = updatedProfilePath;
-            state.outputDirectoryPath = context.outputDirectoryPath;
-            state.options = (int)context.options;
+            state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             state.nextStepIndex++;
             state.currentStepTypeName = string.Empty;
             state.status = CustomBuildPipelineStatus.Waiting;
@@ -347,12 +341,54 @@ namespace Manifestor.Build
             public string message;
             public string profilePath;
             public string profileFingerprint;
-            public string outputDirectoryPath;
-            public int options;
+            public SerializableBuildPlayerOptions buildPlayerOptions = new();
             public List<string> orderedStepTypeNames = new();
             public int nextStepIndex;
             public string currentStepTypeName;
             public long resumeAfterUtcTicks;
+        }
+
+        [Serializable]
+        private sealed class SerializableBuildPlayerOptions
+        {
+            public string[] scenes;
+            public string locationPathName;
+            public string assetBundleManifestPath;
+            public int targetGroup;
+            public int target;
+            public int subtarget;
+            public int options;
+            public string[] extraScriptingDefines;
+
+            public static SerializableBuildPlayerOptions From(BuildPlayerOptions buildPlayerOptions)
+            {
+                return new SerializableBuildPlayerOptions
+                {
+                    scenes = buildPlayerOptions.scenes,
+                    locationPathName = buildPlayerOptions.locationPathName,
+                    assetBundleManifestPath = buildPlayerOptions.assetBundleManifestPath,
+                    targetGroup = (int)buildPlayerOptions.targetGroup,
+                    target = (int)buildPlayerOptions.target,
+                    subtarget = buildPlayerOptions.subtarget,
+                    options = (int)buildPlayerOptions.options,
+                    extraScriptingDefines = buildPlayerOptions.extraScriptingDefines
+                };
+            }
+
+            public BuildPlayerOptions ToBuildPlayerOptions()
+            {
+                return new BuildPlayerOptions
+                {
+                    scenes = scenes,
+                    locationPathName = locationPathName,
+                    assetBundleManifestPath = assetBundleManifestPath,
+                    targetGroup = (BuildTargetGroup)targetGroup,
+                    target = (BuildTarget)target,
+                    subtarget = subtarget,
+                    options = (BuildOptions)options,
+                    extraScriptingDefines = extraScriptingDefines
+                };
+            }
         }
     }
 }

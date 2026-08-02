@@ -46,15 +46,12 @@ namespace Manifestor.Build
     public sealed class CustomBuildContext
     {
         public ManifestProfileSO profile { get; }
-        /// <summary>The user-selected root under which the profile-specific build folder is created.</summary>
-        public string outputDirectoryPath { get; }
-        public BuildOptions options { get; }
+        public BuildPlayerOptions buildPlayerOptions { get; set; }
 
-        public CustomBuildContext(ManifestProfileSO profile, string outputDirectoryPath, BuildOptions options)
+        public CustomBuildContext(ManifestProfileSO profile, BuildPlayerOptions buildPlayerOptions)
         {
             this.profile = profile;
-            this.outputDirectoryPath = outputDirectoryPath;
-            this.options = options;
+            this.buildPlayerOptions = buildPlayerOptions;
         }
     }
 

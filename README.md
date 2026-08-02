@@ -44,7 +44,7 @@ A package identifier may only be declared once across the lists assigned to the 
 
 Open **Tools > Manifestor > Custom Build** and select **New Manifest**, or create an asset with **Assets > Create > Manifestor > Platform Profile**. Configure:
 
-- **Profile Name**: also used as the profile-specific build output folder name.
+- **Profile Name**: the display name used to identify the profile.
 - **Build Profile**: a saved Unity Build Profile for the target platform.
 - **Package Lists**: the package-list assets that make up this manifest.
 
@@ -69,9 +69,9 @@ The last successfully applied profile is restored when the editor starts if its 
 In **Tools > Manifestor > Custom Build**, select a profile and choose:
 
 - **Build** to apply the manifest and build the player.
-- **Clean Build** from the Build dropdown to clear Manifestor's owned output folder before building.
+- **Clean Build** from the Build dropdown to request a clean Unity build cache.
 
-Choose an output root when prompted. Manifestor creates a profile-specific folder beneath it and writes the player using `PlayerSettings.productName`. Clean builds only delete directories bearing Manifestor's ownership marker.
+Choose an output folder when prompted. Manifestor supplies the exact player output path through Unity's `BuildPlayerOptions.locationPathName`, using `PlayerSettings.productName` and the platform extension where applicable.
 
 Build progress and failures are reported in the Unity Console. Only one Manifestor build or apply operation can run at a time.
 
@@ -137,7 +137,17 @@ Set `runDuringApply = true` for steps that should run when **Apply Manifest** is
 1. `ApplyManifestBuildStep`, which applies and resolves the selected profile.
 2. `BuildPlayerStep`, which runs after the apply step and invokes Unity's player build.
 
-`CustomBuildContext` provides the selected `profile`, output root `outputDirectoryPath`, and Unity `BuildOptions`. Return one of:
+`CustomBuildContext` provides the selected `profile` and a mutable Unity `BuildPlayerOptions` value. A step can replace `context.buildPlayerOptions` to configure scenes, output location, target, subtarget, build flags, asset-bundle manifest, or extra scripting defines for later steps. Changes are retained when a step succeeds or waits. The final player step fills unset target, target group, subtarget, scenes, and location from the active build profile and Unity's saved build settings.
+
+Because `BuildPlayerOptions` is a struct, copy it, modify the copy, and assign it back:
+
+```csharp
+var buildPlayerOptions = context.buildPlayerOptions;
+buildPlayerOptions.options |= BuildOptions.Development;
+context.buildPlayerOptions = buildPlayerOptions;
+```
+
+Return one of:
 
 - `CustomBuildStepResult.Succeeded()` to continue.
 - `CustomBuildStepResult.Failed(message)` to stop with an error.
@@ -156,8 +166,11 @@ using UnityEditor;
 ManifestorResult applyResult = CustomBuildPipeline.Apply(profile);
 ManifestorResult buildResult = CustomBuildPipeline.Build(
     profile,
-    outputRoot,
-    BuildOptions.CleanBuildCache);
+    new BuildPlayerOptions
+    {
+        locationPathName = outputPath,
+        options = BuildOptions.CleanBuildCache
+    });
 
 if (!buildResult.success)
 {

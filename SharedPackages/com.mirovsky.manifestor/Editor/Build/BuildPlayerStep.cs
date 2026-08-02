@@ -1,7 +1,6 @@
 namespace Manifestor.Build
 {
     using System;
-    using System.IO;
     using System.Linq;
     using UnityEditor;
     using UnityEditor.Build.Reporting;
@@ -16,49 +15,36 @@ namespace Manifestor.Build
                 return CustomBuildStepResult.Failed("A manifest profile with a Unity Build Profile is required.");
             }
 
-            if (string.IsNullOrWhiteSpace(context.outputDirectoryPath))
-            {
-                return CustomBuildStepResult.Failed("Build output directory cannot be empty.");
-            }
-
             var originalBuildTarget = EditorUserBuildSettings.activeBuildTarget;
             CustomBuildStepResult result;
             try
             {
-                var buildTarget = BuildProfileUtility.GetBuildTarget(context.profile.buildProfile);
-                var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(buildTarget);
-                if (!SwitchActiveBuildTarget(buildTarget, buildTargetGroup))
+                var buildPlayerOptions = ApplyDefaults(context);
+                if (!SwitchActiveBuildTarget(buildPlayerOptions.target, buildPlayerOptions.targetGroup))
                 {
                     result = CustomBuildStepResult.Failed(
-                        $"Unity could not switch to build target '{buildTarget}'.");
+                        $"Unity could not switch to build target '{buildPlayerOptions.target}'.");
                     return RestoreBuildTargetAfterFailure(result, originalBuildTarget);
                 }
 
-                var cleanBuild = (context.options & BuildOptions.CleanBuildCache) != 0;
-                var outputDirectoryPath = BuildOutputDirectoryUtility.Prepare(
-                    context.profile,
-                    context.outputDirectoryPath,
-                    cleanBuild);
-
-                var outputFilePath = GetOutputFilePath(buildTarget, outputDirectoryPath);
                 UnityEngine.Debug.Log(
-                    $"Custom build target '{buildTarget}' will output to '{outputFilePath}'.");
+                    $"Custom build target '{buildPlayerOptions.target}' will output to " +
+                    $"'{buildPlayerOptions.locationPathName}'.");
 
-                var report = BuildPipeline.BuildPlayer(new BuildPlayerWithProfileOptions
-                {
-                    buildProfile = context.profile.buildProfile,
-                    locationPathName = outputFilePath,
-                    options = context.options | BuildOptions.DetailedBuildReport
-                });
+                buildPlayerOptions.options |= BuildOptions.DetailedBuildReport;
+                context.buildPlayerOptions = buildPlayerOptions;
+                var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
 
                 result = report.summary.result switch
                 {
                     BuildResult.Succeeded => CustomBuildStepResult.Succeeded(
-                        $"Build succeeded at '{outputFilePath}': {report.summary.totalSize} bytes."),
+                        $"Build succeeded at '{buildPlayerOptions.locationPathName}': " +
+                        $"{report.summary.totalSize} bytes."),
                     BuildResult.Cancelled => CustomBuildStepResult.Cancelled(
-                        $"Build to '{outputFilePath}' was cancelled."),
+                        $"Build to '{buildPlayerOptions.locationPathName}' was cancelled."),
                     _ => CustomBuildStepResult.Failed(
-                        $"Build to '{outputFilePath}' failed with {report.summary.totalErrors} error(s).")
+                        $"Build to '{buildPlayerOptions.locationPathName}' failed with " +
+                        $"{report.summary.totalErrors} error(s).")
                 };
             }
             catch (Exception exception)
@@ -69,6 +55,39 @@ namespace Manifestor.Build
             return result.success
                 ? result
                 : RestoreBuildTargetAfterFailure(result, originalBuildTarget);
+        }
+
+        private static BuildPlayerOptions ApplyDefaults(CustomBuildContext context)
+        {
+            var buildPlayerOptions = context.buildPlayerOptions;
+            var usesDefaultTarget = buildPlayerOptions.target is 0 or BuildTarget.NoTarget;
+            if (usesDefaultTarget)
+            {
+                buildPlayerOptions.target = BuildProfileUtility.GetBuildTarget(context.profile.buildProfile);
+                buildPlayerOptions.subtarget = BuildProfileUtility.GetSubtarget(context.profile.buildProfile);
+            }
+
+            if (buildPlayerOptions.targetGroup == BuildTargetGroup.Unknown)
+            {
+                buildPlayerOptions.targetGroup = BuildPipeline.GetBuildTargetGroup(buildPlayerOptions.target);
+            }
+
+            buildPlayerOptions.scenes ??= EditorBuildSettings.scenes
+                .Where(scene => scene.enabled && !string.IsNullOrEmpty(scene.path))
+                .Select(scene => scene.path)
+                .ToArray();
+
+            if (string.IsNullOrWhiteSpace(buildPlayerOptions.locationPathName))
+            {
+                buildPlayerOptions.locationPathName = EditorUserBuildSettings.GetBuildLocation(buildPlayerOptions.target);
+            }
+
+            if (string.IsNullOrWhiteSpace(buildPlayerOptions.locationPathName))
+            {
+                throw new InvalidOperationException($"No build location is configured for target '{buildPlayerOptions.target}'.");
+            }
+
+            return buildPlayerOptions;
         }
 
         private static bool SwitchActiveBuildTarget(BuildTarget buildTarget, BuildTargetGroup buildTargetGroup)
@@ -99,133 +118,5 @@ namespace Manifestor.Build
             }
         }
 
-        private static string GetOutputFilePath(BuildTarget buildTarget, string outputDirectoryPath)
-        {
-            var fileName = PlayerSettings.productName;
-            var extension = buildTarget switch
-            {
-                BuildTarget.StandaloneWindows or BuildTarget.StandaloneWindows64 => ".exe",
-                BuildTarget.StandaloneOSX => ".app",
-                _ => string.Empty
-            };
-
-            return Path.Combine(outputDirectoryPath, fileName + extension);
-        }
-
-    }
-
-    internal static class BuildOutputDirectoryUtility
-    {
-        private const string OwnershipMarkerFileName = ".manifestor-build-output";
-
-        public static string Prepare(ManifestProfileSO profile, string outputRootDirectoryPath, bool clean)
-        {
-            if (profile == null)
-            {
-                throw new ArgumentNullException(nameof(profile));
-            }
-
-            var ownerId = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(profile));
-            if (string.IsNullOrEmpty(ownerId))
-            {
-                throw new InvalidOperationException("Manifest profile must be saved as a project asset before building.");
-            }
-
-            return PrepareOwnedDirectory(profile.profileName, outputRootDirectoryPath, ownerId, clean);
-        }
-
-        internal static bool IsValidDirectoryName(string profileName)
-        {
-            try
-            {
-                ValidateDirectoryName((profileName ?? string.Empty).Trim());
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-        }
-
-        internal static string PrepareOwnedDirectory(
-            string profileName,
-            string outputRootDirectoryPath,
-            string ownerId,
-            bool clean)
-        {
-            if (string.IsNullOrWhiteSpace(ownerId))
-            {
-                throw new ArgumentException("Build directory owner ID cannot be empty.", nameof(ownerId));
-            }
-
-            var buildDirectoryPath = GetBuildDirectoryPath(profileName, outputRootDirectoryPath);
-            var markerPath = Path.Combine(buildDirectoryPath, OwnershipMarkerFileName);
-            if (Directory.Exists(buildDirectoryPath))
-            {
-                var hasContents = Directory.EnumerateFileSystemEntries(buildDirectoryPath).Any();
-                var hasValidMarker = File.Exists(markerPath) &&
-                                     string.Equals(File.ReadAllText(markerPath).Trim(), ownerId, StringComparison.Ordinal);
-                if (hasContents && !hasValidMarker)
-                {
-                    throw new InvalidOperationException(
-                        $"Build directory '{buildDirectoryPath}' is not owned by this manifest profile and cannot be used.");
-                }
-
-                if (clean)
-                {
-                    Directory.Delete(buildDirectoryPath, recursive: true);
-                }
-            }
-
-            Directory.CreateDirectory(buildDirectoryPath);
-            File.WriteAllText(markerPath, ownerId);
-            return buildDirectoryPath;
-        }
-
-        internal static string GetBuildDirectoryPath(string profileName, string outputRootDirectoryPath)
-        {
-            if (string.IsNullOrWhiteSpace(outputRootDirectoryPath))
-            {
-                throw new ArgumentException("Build output root directory cannot be empty.", nameof(outputRootDirectoryPath));
-            }
-
-            var normalizedProfileName = (profileName ?? string.Empty).Trim();
-            ValidateDirectoryName(normalizedProfileName);
-            var rootPath = NormalizeDirectoryPath(outputRootDirectoryPath);
-            var buildDirectoryPath = NormalizeDirectoryPath(Path.Combine(rootPath, normalizedProfileName));
-            if (!buildDirectoryPath.StartsWith(rootPath + Path.DirectorySeparatorChar, GetPathComparison()))
-            {
-                throw new InvalidOperationException("The profile build directory must be a child of the selected output root.");
-            }
-
-            return buildDirectoryPath;
-        }
-
-        private static void ValidateDirectoryName(string directoryName)
-        {
-            if (string.IsNullOrWhiteSpace(directoryName) || directoryName == "." || directoryName == ".." ||
-                directoryName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
-                directoryName.Contains(Path.DirectorySeparatorChar) ||
-                directoryName.Contains(Path.AltDirectorySeparatorChar))
-            {
-                throw new ArgumentException($"Profile name '{directoryName}' is not a valid build directory name.");
-            }
-        }
-
-        private static string NormalizeDirectoryPath(string path)
-        {
-            var fullPath = Path.GetFullPath(path);
-            var rootPath = Path.GetPathRoot(fullPath);
-            return string.Equals(fullPath, rootPath, GetPathComparison())
-                ? fullPath
-                : fullPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        }
-
-        private static StringComparison GetPathComparison()
-        {
-            return Path.DirectorySeparatorChar == '\\'
-                ? StringComparison.OrdinalIgnoreCase
-                : StringComparison.Ordinal;
-        }
     }
 }

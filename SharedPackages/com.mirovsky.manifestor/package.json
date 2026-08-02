@@ -3,7 +3,7 @@
   "displayName": "Manifestor",
   "version": "0.1.0",
   "unity": "6000.4",
-  "description": "Editor tooling for generating Packages/manifest.json from ScriptableObject build profiles.",
+  "description": "Unity Editor tooling for defining reusable package manifests, applying them per Build Profile, and building projects with profile-specific dependencies and settings.",
   "author": {
     "name": "Jakub Mirovsk\u00fd"
   }
