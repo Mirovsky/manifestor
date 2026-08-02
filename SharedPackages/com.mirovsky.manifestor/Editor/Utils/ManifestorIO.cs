@@ -41,21 +41,25 @@
                 .Where(package => package != null)
                 .ToDictionary(package => StringUtils.Normalize(package.packageName), package => StringUtils.Normalize(package.location));
 
+            var testables = profile.packagesLists
+                .SelectMany(list => list.testables)
+                .Distinct()
+                .ToArray();
+
             return new ProjectManifest(
                 manifestorData,
                 scopedRegistries,
                 dependencies,
                 enableLockFile: true,
                 resolutionStrategy: "lowest",
-                testables: Array.Empty<string>(),
+                testables: testables,
                 pinnedPackages: Array.Empty<string>()
             );
         }
 
         public static void SaveManifest(ProjectManifest manifest)
         {
-            var json = SerializeManifest(manifest);
-            SaveManifestTextAtomic(json);
+            SaveManifestTextAtomic(SerializeManifest(manifest));
         }
 
         internal static bool ManifestExists()

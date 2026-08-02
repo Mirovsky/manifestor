@@ -1,9 +1,11 @@
-namespace Mirov.Manifestor.Editor.Tests
+namespace Manifestor.Editor.Tests
 {
     using System;
     using System.IO;
+    using Build;
     using Newtonsoft.Json;
     using NUnit.Framework;
+    using SerializedData;
     using UnityEditor;
     using UnityEngine;
 
@@ -34,7 +36,7 @@ namespace Mirov.Manifestor.Editor.Tests
 
             Assert.That(manifest.manifestorData.name, Is.EqualTo("Windows"));
             Assert.That(manifest.dependencies["com.example.package"], Is.EqualTo("1.2.3"));
-            Assert.That(manifest.scopedRegistries, Has.Count.EqualTo(1));
+            Assert.AreEqual(manifest.scopedRegistries.Count, 1);
             Assert.That(manifest.scopedRegistries[0].scopes, Is.EqualTo(new[] { "com.example" }));
         }
 

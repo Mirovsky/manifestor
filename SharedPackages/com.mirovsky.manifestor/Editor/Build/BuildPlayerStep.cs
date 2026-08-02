@@ -147,7 +147,7 @@ namespace Manifestor.Build
             }
         }
 
-        private static string PrepareOwnedDirectory(
+        internal static string PrepareOwnedDirectory(
             string profileName,
             string outputRootDirectoryPath,
             string ownerId,
@@ -182,7 +182,7 @@ namespace Manifestor.Build
             return buildDirectoryPath;
         }
 
-        private static string GetBuildDirectoryPath(string profileName, string outputRootDirectoryPath)
+        internal static string GetBuildDirectoryPath(string profileName, string outputRootDirectoryPath)
         {
             if (string.IsNullOrWhiteSpace(outputRootDirectoryPath))
             {

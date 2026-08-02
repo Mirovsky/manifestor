@@ -17,3 +17,5 @@ MonoBehaviour:
     _location: file:../SharedPackages/com.mirovsky.manifestor
   _defines: []
   _scopedRegistries: []
+  _testables:
+  - com.mirovsky.manifestor

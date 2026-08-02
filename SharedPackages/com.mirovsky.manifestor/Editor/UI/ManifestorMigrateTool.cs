@@ -1,5 +1,6 @@
 namespace Manifestor.UI
 {
+
     using System;
     using System.Collections.Generic;
     using System.Linq;
@@ -106,7 +107,7 @@ namespace Manifestor.UI
                 assetPath ?? string.Empty);
         }
 
-        private static IReadOnlyList<MigrationRow> BuildRows(IEnumerable<ManifestPackageDiffEntry> changes, IReadOnlyList<PackageListTarget> packageLists)
+        internal static IReadOnlyList<MigrationRow> BuildRows(IEnumerable<ManifestPackageDiffEntry> changes, IReadOnlyList<PackageListTarget> packageLists)
         {
             var result = new List<MigrationRow>();
             if (changes == null)

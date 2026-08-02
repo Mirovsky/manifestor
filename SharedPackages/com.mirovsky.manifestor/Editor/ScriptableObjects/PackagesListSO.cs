@@ -1,3 +1,7 @@
+using System.Runtime.CompilerServices;
+
+[assembly: InternalsVisibleTo("Manifestor.Editor.Tests")]
+
 namespace Manifestor
 {
     using System;
@@ -81,10 +85,12 @@ namespace Manifestor
         [SerializeField] internal List<PackageEntry> _packages = new();
         [SerializeField] internal List<string> _defines = new();
         [SerializeField] internal List<PackagesScopedRegistry> _scopedRegistries = new();
+        [SerializeField] internal List<string> _testables = new();
 
         public IReadOnlyList<PackageEntry> packages => _packages;
         public IReadOnlyList<string> defines => _defines;
         public IReadOnlyList<PackagesScopedRegistry> scopedRegistries => _scopedRegistries;
+        public IReadOnlyList<string> testables => _testables;
 
         public bool AddPackage(string packageName, string location)
         {

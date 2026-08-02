@@ -19,7 +19,7 @@ namespace Manifestor
             return Compare(ManifestorIO.LoadExistingManifest()?.dependencies, packageLists);
         }
 
-        private static ManifestPackageDiffResult Compare(
+        internal static ManifestPackageDiffResult Compare(
             IReadOnlyDictionary<string, string> manifestDependencies,
             IEnumerable<PackagesListSO> packageLists)
         {

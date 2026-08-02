@@ -1,5 +1,5 @@
 {
-    "name": "Manifestor.Tests",
+    "name": "com.mirovsky.manifestor.tests",
     "rootNamespace": "Manifestor.Tests",
     "references": [
         "com.mirovsky.manifestor",
@@ -13,7 +13,8 @@
     "allowUnsafeCode": false,
     "overrideReferences": true,
     "precompiledReferences": [
-        "nunit.framework.dll"
+        "nunit.framework.dll",
+        "Newtonsoft.Json.dll"
     ],
     "autoReferenced": false,
     "defineConstraints": [

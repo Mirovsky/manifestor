@@ -1,7 +1,8 @@
-namespace Mirov.Manifestor.Editor.Tests
+namespace Manifestor.Editor.Tests
 {
     using NUnit.Framework;
     using UnityEngine;
+    using UI;
 
     public sealed class ManifestorMigrateToolTests
     {

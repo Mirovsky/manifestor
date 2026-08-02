@@ -1,7 +1,3 @@
-using System.Runtime.CompilerServices;
-
-[assembly: InternalsVisibleTo("Mirov.Manifestor.Editor.Tests")]
-
 namespace Manifestor.Build
 {
     using System;
