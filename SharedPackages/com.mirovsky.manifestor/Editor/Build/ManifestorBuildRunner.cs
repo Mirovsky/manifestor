@@ -4,26 +4,26 @@ namespace Manifestor.Build
     using UnityEditor;
     using UnityEngine;
 
-    internal sealed class CustomBuildRunner
+    internal sealed class ManifestorBuildRunner
     {
-        private readonly Action<CustomBuildOperation, CustomBuildPipelineStatus> _completed;
+        private readonly Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> _completed;
 
-        public static bool isActive => CustomBuildPipelineStateStore.Load().isActive;
+        public static bool isActive => ManifestorBuildPipelineStateStore.Load().isActive;
 
-        public CustomBuildRunner(Action<CustomBuildOperation, CustomBuildPipelineStatus> completed)
+        public ManifestorBuildRunner(Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> completed)
         {
             _completed = completed;
         }
 
         public bool Restore()
         {
-            var state = CustomBuildPipelineStateStore.Load();
+            var state = ManifestorBuildPipelineStateStore.Load();
             if (!state.isActive)
             {
                 return false;
             }
 
-            if (state.status != CustomBuildPipelineStatus.Running)
+            if (state.status != ManifestorBuildPipelineStatus.Running)
             {
                 return true;
             }
@@ -35,19 +35,19 @@ namespace Manifestor.Build
                     : $" Cleanup failed: {handlerMessage}";
             Complete(
                 state,
-                CustomBuildPipelineStatus.Failed,
+                ManifestorBuildPipelineStatus.Failed,
                 $"Custom build was interrupted while running step '{state.currentStepTypeName}' and was not retried.{recoveryMessage}");
 
             return false;
         }
 
-        private bool TryHandleInterruption(CustomBuildPipelineState state, out string message)
+        private bool TryHandleInterruption(ManifestorBuildPipelineState state, out string message)
         {
             message = string.Empty;
 
             var stepType = Type.GetType(state.currentStepTypeName ?? string.Empty);
             if (stepType == null ||
-                !typeof(ICustomBuildStepInterruptionHandler).IsAssignableFrom(stepType))
+                !typeof(IManifestorBuildStepInterruptionHandler).IsAssignableFrom(stepType))
             {
                 return false;
             }
@@ -62,7 +62,7 @@ namespace Manifestor.Build
 
             try
             {
-                var context = new CustomBuildContext(
+                var context = new ManifestorBuildContext(
                     profile,
                     state.operation,
                     state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
@@ -72,12 +72,12 @@ namespace Manifestor.Build
                     {
                         state.stepState = stepState;
                         state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
-                        CustomBuildPipelineStateStore.Save(state);
+                        ManifestorBuildPipelineStateStore.Save(state);
                     });
-                var handler = (ICustomBuildStepInterruptionHandler)Activator.CreateInstance(stepType);
+                var handler = (IManifestorBuildStepInterruptionHandler)Activator.CreateInstance(stepType);
                 var result = handler.HandleInterruption(context);
                 message = result.message;
-                return result.outcome is CustomBuildStepOutcome.Succeeded or CustomBuildStepOutcome.Cancelled;
+                return result.outcome is ManifestorBuildStepOutcome.Succeeded or ManifestorBuildStepOutcome.Cancelled;
             }
             catch (Exception exception)
             {
@@ -87,21 +87,21 @@ namespace Manifestor.Build
             }
         }
 
-        public ManifestorResult Start(CustomBuildPipelineState state)
+        public ManifestorResult Start(ManifestorBuildPipelineState state)
         {
-            var currentState = CustomBuildPipelineStateStore.Load();
+            var currentState = ManifestorBuildPipelineStateStore.Load();
             if (currentState.isActive || BuildPipeline.isBuildingPlayer)
             {
                 return ManifestorResult.Error("A custom build is already in progress.");
             }
 
-            CustomBuildPipelineStateStore.Save(state);
+            ManifestorBuildPipelineStateStore.Save(state);
             return ManifestorResult.Ok();
         }
 
         public ManifestorResult Cancel()
         {
-            var state = CustomBuildPipelineStateStore.Load();
+            var state = ManifestorBuildPipelineStateStore.Load();
             if (!state.isActive)
             {
                 return ManifestorResult.Error("No custom build is in progress.");
@@ -110,13 +110,13 @@ namespace Manifestor.Build
             state.cancellationRequested = true;
             state.message = "Custom build cancellation requested.";
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            CustomBuildPipelineStateStore.Save(state);
+            ManifestorBuildPipelineStateStore.Save(state);
             return ManifestorResult.Ok();
         }
 
         public void Tick()
         {
-            var state = CustomBuildPipelineStateStore.Load();
+            var state = ManifestorBuildPipelineStateStore.Load();
             if (!state.isActive || DateTime.UtcNow.Ticks < state.resumeAfterUtcTicks)
             {
                 return;
@@ -124,7 +124,7 @@ namespace Manifestor.Build
 
             if (state.cancellationRequested && string.IsNullOrEmpty(state.currentStepTypeName))
             {
-                Complete(state, CustomBuildPipelineStatus.Cancelled, "Custom build was cancelled.");
+                Complete(state, ManifestorBuildPipelineStatus.Cancelled, "Custom build was cancelled.");
                 return;
             }
 
@@ -132,8 +132,8 @@ namespace Manifestor.Build
             {
                 Complete(
                     state,
-                    CustomBuildPipelineStatus.Succeeded,
-                    state.operation == CustomBuildOperation.Apply
+                    ManifestorBuildPipelineStatus.Succeeded,
+                    state.operation == ManifestorBuildOperation.Apply
                         ? "Manifest apply completed successfully."
                         : "Custom build completed successfully.");
                 return;
@@ -143,7 +143,7 @@ namespace Manifestor.Build
             var stepType = Type.GetType(stepTypeName);
             if (stepType == null)
             {
-                Complete(state, CustomBuildPipelineStatus.Failed, $"Build step type '{stepTypeName}' could not be loaded.");
+                Complete(state, ManifestorBuildPipelineStatus.Failed, $"Build step type '{stepTypeName}' could not be loaded.");
                 return;
             }
 
@@ -151,7 +151,7 @@ namespace Manifestor.Build
             var profile = AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(profilePath);
             if (profile == null)
             {
-                Complete(state, CustomBuildPipelineStatus.Failed,
+                Complete(state, ManifestorBuildPipelineStatus.Failed,
                     $"Manifest profile with GUID '{state.profileGuid}' could not be loaded.");
                 return;
             }
@@ -161,24 +161,25 @@ namespace Manifestor.Build
                 var currentFingerprint = ManifestorProfileFingerprint.Calculate(profile);
                 if (!string.Equals(currentFingerprint, state.profileFingerprint, StringComparison.Ordinal))
                 {
-                    Complete(state, CustomBuildPipelineStatus.Failed,
+                    Complete(state, ManifestorBuildPipelineStatus.Failed,
                         $"Manifest profile '{profilePath}' changed while the custom build was running.");
                     return;
                 }
             }
             catch (Exception exception)
             {
-                Complete(state, CustomBuildPipelineStatus.Failed,
+                Complete(state, ManifestorBuildPipelineStatus.Failed,
                     $"Failed to validate manifest profile before step '{stepType.FullName}': {exception.Message}");
                 return;
             }
 
-            state.status = CustomBuildPipelineStatus.Running;
+            state.status = ManifestorBuildPipelineStatus.Running;
             state.currentStepTypeName = stepTypeName;
             state.message = $"Running build step '{stepType.FullName}'.";
-            CustomBuildPipelineStateStore.Save(state);
 
-            var context = new CustomBuildContext(
+            ManifestorBuildPipelineStateStore.Save(state);
+
+            var context = new ManifestorBuildContext(
                 profile,
                 state.operation,
                 state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
@@ -188,33 +189,33 @@ namespace Manifestor.Build
                 {
                     state.stepState = stepState;
                     state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
-                    CustomBuildPipelineStateStore.Save(state);
+                    ManifestorBuildPipelineStateStore.Save(state);
                 });
 
-            CustomBuildStepResult result;
+            ManifestorBuildStepResult result;
             try
             {
-                var step = (ICustomBuildStep)Activator.CreateInstance(stepType);
+                var step = (IManifestorBuildStep)Activator.CreateInstance(stepType);
                 result = step.Tick(context);
             }
             catch (Exception exception)
             {
                 Debug.LogException(exception);
-                result = CustomBuildStepResult.Failed(
+                result = ManifestorBuildStepResult.Failed(
                     $"Build step '{stepType.FullName}' threw an exception: {exception.Message}");
             }
 
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             state.stepState = context.persistedState;
 
-            if (result.outcome == CustomBuildStepOutcome.Waiting)
+            if (result.outcome == ManifestorBuildStepOutcome.Waiting)
             {
-                state.status = CustomBuildPipelineStatus.Waiting;
+                state.status = ManifestorBuildPipelineStatus.Waiting;
                 state.message = string.IsNullOrEmpty(result.message)
                     ? $"Build step '{stepType.FullName}' is waiting."
                     : result.message;
                 state.resumeAfterUtcTicks = DateTime.UtcNow.AddSeconds(result.retryAfterSeconds).Ticks;
-                CustomBuildPipelineStateStore.Save(state);
+                ManifestorBuildPipelineStateStore.Save(state);
                 return;
             }
 
@@ -222,33 +223,33 @@ namespace Manifestor.Build
             {
                 Complete(
                     state,
-                    result.outcome == CustomBuildStepOutcome.Cancelled
-                        ? CustomBuildPipelineStatus.Cancelled
-                        : CustomBuildPipelineStatus.Failed,
+                    result.outcome == ManifestorBuildStepOutcome.Cancelled
+                        ? ManifestorBuildPipelineStatus.Cancelled
+                        : ManifestorBuildPipelineStatus.Failed,
                     CreateStepMessage(stepType, result.message));
                 return;
             }
 
             if (state.cancellationRequested)
             {
-                Complete(state, CustomBuildPipelineStatus.Cancelled, "Custom build was cancelled.");
+                Complete(state, ManifestorBuildPipelineStatus.Cancelled, "Custom build was cancelled.");
                 return;
             }
 
             state.nextStepIndex++;
             state.currentStepTypeName = string.Empty;
             state.stepState = string.Empty;
-            state.status = CustomBuildPipelineStatus.Waiting;
+            state.status = ManifestorBuildPipelineStatus.Waiting;
             state.message = string.IsNullOrEmpty(result.message)
                 ? $"Build step '{stepType.FullName}' completed."
                 : result.message;
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            CustomBuildPipelineStateStore.Save(state);
+            ManifestorBuildPipelineStateStore.Save(state);
         }
 
         private void Complete(
-            CustomBuildPipelineState state,
-            CustomBuildPipelineStatus terminalStatus,
+            ManifestorBuildPipelineState state,
+            ManifestorBuildPipelineStatus terminalStatus,
             string message)
         {
             state.isActive = false;
@@ -256,15 +257,15 @@ namespace Manifestor.Build
             state.message = message;
             state.currentStepTypeName = string.Empty;
             state.stepState = string.Empty;
-            CustomBuildPipelineStateStore.Save(state);
-            CustomBuildScheduler.Stop();
+            ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildScheduler.Stop();
 
             switch (terminalStatus)
             {
-                case CustomBuildPipelineStatus.Succeeded:
+                case ManifestorBuildPipelineStatus.Succeeded:
                     Debug.Log(message);
                     break;
-                case CustomBuildPipelineStatus.Cancelled:
+                case ManifestorBuildPipelineStatus.Cancelled:
                     Debug.LogWarning(message);
                     break;
                 default:

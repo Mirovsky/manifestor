@@ -12,10 +12,10 @@
     {
         public static PackageListTarget[] FindPackageLists()
         {
-            return AssetDatabase.FindAssets("t:PackagesListSO")
+            return AssetDatabase.FindAssets("t:ManifestorPackagesListSO")
                 .Select(AssetDatabase.GUIDToAssetPath)
                 .OrderBy(path => path, StringComparer.Ordinal)
-                .Select(path => new PackageListTarget(AssetDatabase.LoadAssetAtPath<PackagesListSO>(path), path))
+                .Select(path => new PackageListTarget(AssetDatabase.LoadAssetAtPath<ManifestorPackagesListSO>(path), path))
                 .Where(target => target.packageList != null)
                 .ToArray();
         }
@@ -32,7 +32,7 @@
                 return;
             }
 
-            var packageList = ScriptableObject.CreateInstance<PackagesListSO>();
+            var packageList = ScriptableObject.CreateInstance<ManifestorPackagesListSO>();
             AssetDatabase.CreateAsset(packageList, assetPath);
             Undo.RegisterCreatedObjectUndo(packageList, "Create Packages List");
             AssetDatabase.SaveAssets();
@@ -82,7 +82,7 @@
             }
         }
 
-        private static bool ApplyChange(PackagesListSO packageList, ManifestPackageDiffEntry change)
+        private static bool ApplyChange(ManifestorPackagesListSO packageList, ManifestPackageDiffEntry change)
         {
             return change.changeKind switch
             {
@@ -96,7 +96,7 @@
             };
         }
 
-        private static bool UsesScopedRegistry(PackagesListSO packageList, ScopedManifestRegistry scopedRegistry)
+        private static bool UsesScopedRegistry(ManifestorPackagesListSO packageList, ScopedManifestRegistry scopedRegistry)
         {
             if (packageList.packages == null || scopedRegistry.scopes == null)
             {
@@ -115,9 +115,9 @@
         private readonly struct SelectedChange
         {
             public readonly ManifestPackageDiffEntry change;
-            public readonly PackagesListSO packageList;
+            public readonly ManifestorPackagesListSO packageList;
 
-            public SelectedChange(ManifestPackageDiffEntry change, PackagesListSO packageList)
+            public SelectedChange(ManifestPackageDiffEntry change, ManifestorPackagesListSO packageList)
             {
                 this.change = change;
                 this.packageList = packageList;

@@ -54,15 +54,15 @@ namespace Manifestor.UI
             _content = rootVisualElement.Q<VisualElement>("Content");
             rootVisualElement.dataSource = _customBuildData;
 
-            CustomBuildPipeline.completed -= HandleCustomBuildPipelineCompleted;
-            CustomBuildPipeline.completed += HandleCustomBuildPipelineCompleted;
+            ManifestorBuildPipeline.completed -= HandleCustomBuildPipelineCompleted;
+            ManifestorBuildPipeline.completed += HandleCustomBuildPipelineCompleted;
 
             Refresh();
         }
 
         private void OnDisable()
         {
-            CustomBuildPipeline.completed -= HandleCustomBuildPipelineCompleted;
+            ManifestorBuildPipeline.completed -= HandleCustomBuildPipelineCompleted;
             DestroyManifestProfileEditor();
         }
 
@@ -79,7 +79,7 @@ namespace Manifestor.UI
             var profile = _customBuildData.selectedManifestProfile;
             if (profile?.buildProfile == null)
             {
-                LogPipelineStartError(CustomBuildPipeline.Build(profile, string.Empty));
+                LogPipelineStartError(ManifestorBuildPipeline.Build(profile, string.Empty));
                 return;
             }
 
@@ -89,7 +89,7 @@ namespace Manifestor.UI
                 return;
             }
 
-            var result = CustomBuildPipeline.Build(profile, folderPath);
+            var result = ManifestorBuildPipeline.Build(profile, folderPath);
             LogPipelineStartError(result);
         }
 
@@ -98,7 +98,7 @@ namespace Manifestor.UI
             var profile = _customBuildData.selectedManifestProfile;
             if (profile?.buildProfile == null)
             {
-                LogPipelineStartError(CustomBuildPipeline.Build(profile, string.Empty));
+                LogPipelineStartError(ManifestorBuildPipeline.Build(profile, string.Empty));
                 return;
             }
 
@@ -108,7 +108,7 @@ namespace Manifestor.UI
                 return;
             }
 
-            var result = CustomBuildPipeline.Build(profile, folderPath, BuildOptions.CleanBuildCache);
+            var result = ManifestorBuildPipeline.Build(profile, folderPath, BuildOptions.CleanBuildCache);
             LogPipelineStartError(result);
         }
 
@@ -132,7 +132,7 @@ namespace Manifestor.UI
 
         private void Refresh()
         {
-            var hasValidOrder = CustomBuildPipeline.TryGetOrderedSteps(out var steps, out var error);
+            var hasValidOrder = ManifestorBuildPipeline.TryGetOrderedSteps(out var steps, out var error);
             _buildStepsList.SetSteps(hasValidOrder, steps, error);
 
             var manifests = FindManifests();
@@ -256,12 +256,12 @@ namespace Manifestor.UI
 
         private void HandleApplyManifestButtonClicked()
         {
-            LogPipelineStartError(CustomBuildPipeline.Apply(_customBuildData.selectedManifestProfile));
+            LogPipelineStartError(ManifestorBuildPipeline.Apply(_customBuildData.selectedManifestProfile));
         }
 
         private void HandleCustomBuildPipelineCompleted(
-            CustomBuildOperation operation,
-            CustomBuildPipelineStatus pipelineStatus)
+            ManifestorBuildOperation operation,
+            ManifestorBuildPipelineStatus pipelineStatus)
         {
             Refresh();
         }

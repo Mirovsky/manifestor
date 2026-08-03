@@ -9,19 +9,15 @@ namespace Manifestor
     {
         public static ManifestPackageDiffResult CreateManifestDiff()
         {
-            var packageLists = AssetDatabase.FindAssets("t:PackagesListSO")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .Select(AssetDatabase.LoadAssetAtPath<PackagesListSO>)
-                .Where(packageList => packageList != null)
-                .ToArray();
+            var packageLists = PackagesListUtils.FindPackageLists()
+                .Select(p => p.packageList);
 
             return Compare(ManifestorIO.LoadExistingManifest()?.dependencies, packageLists);
         }
 
         internal static ManifestPackageDiffResult Compare(
             IReadOnlyDictionary<string, string> manifestDependencies,
-            IEnumerable<PackagesListSO> packageLists)
+            IEnumerable<ManifestorPackagesListSO> packageLists)
         {
             var manifest = NormalizeManifestDependencies(manifestDependencies);
             var packageListDependencies = NormalizePackageListDependencies(packageLists);
@@ -70,10 +66,10 @@ namespace Manifestor
             return result;
         }
 
-        private static Dictionary<string, IReadOnlyList<string>> NormalizePackageListDependencies(IEnumerable<PackagesListSO> packageLists)
+        private static Dictionary<string, IReadOnlyList<string>> NormalizePackageListDependencies(IEnumerable<ManifestorPackagesListSO> packageLists)
         {
             var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
-            foreach (var packageList in packageLists ?? Array.Empty<PackagesListSO>())
+            foreach (var packageList in packageLists ?? Array.Empty<ManifestorPackagesListSO>())
             {
                 if (packageList?.packages == null)
                 {

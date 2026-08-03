@@ -12,7 +12,7 @@ namespace Manifestor.Editor.Tests
         [Test]
         public void PackageList_AddUpdateAndRemovePackage()
         {
-            var packageList = ScriptableObject.CreateInstance<PackagesListSO>();
+            var packageList = ScriptableObject.CreateInstance<ManifestorPackagesListSO>();
 
             Assert.That(packageList.AddPackage(" com.example.package ", " 1.0.0 "), Is.True);
             Assert.That(packageList.AddPackage("com.example.package", "2.0.0"), Is.False);
@@ -52,15 +52,15 @@ namespace Manifestor.Editor.Tests
         [Test]
         public void CustomBuildStepResult_WaitingIsNotSuccessful()
         {
-            var result = CustomBuildStepResult.Waiting("Resolving");
+            var result = ManifestorBuildStepResult.Waiting("Resolving");
 
-            Assert.That(result.outcome, Is.EqualTo(CustomBuildStepOutcome.Waiting));
+            Assert.That(result.outcome, Is.EqualTo(ManifestorBuildStepOutcome.Waiting));
             Assert.That(result.success, Is.False);
         }
 
-        private static PackagesListSO CreatePackageList(params (string packageName, string location)[] packages)
+        private static ManifestorPackagesListSO CreatePackageList(params (string packageName, string location)[] packages)
         {
-            var packageList = ScriptableObject.CreateInstance<PackagesListSO>();
+            var packageList = ScriptableObject.CreateInstance<ManifestorPackagesListSO>();
             foreach (var package in packages)
             {
                 packageList.AddPackage(package.packageName, package.location);
@@ -69,7 +69,7 @@ namespace Manifestor.Editor.Tests
             return packageList;
         }
 
-        private static ManifestProfileSO CreateProfile(string profileName, params PackagesListSO[] packageLists)
+        private static ManifestProfileSO CreateProfile(string profileName, params ManifestorPackagesListSO[] packageLists)
         {
             var profile = ScriptableObject.CreateInstance<ManifestProfileSO>();
             var serializedObject = new SerializedObject(profile);

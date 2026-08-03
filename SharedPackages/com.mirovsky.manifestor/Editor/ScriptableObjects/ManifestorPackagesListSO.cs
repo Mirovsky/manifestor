@@ -80,7 +80,7 @@ namespace Manifestor
 
 
     [CreateAssetMenu(menuName = "Manifestor/Packages List", fileName = "PackagesList")]
-    public sealed class PackagesListSO : ScriptableObject
+    public sealed class ManifestorPackagesListSO : ScriptableObject
     {
         [SerializeField] internal List<PackageEntry> _packages = new();
         [SerializeField] internal List<string> _defines = new();

@@ -14,36 +14,36 @@ namespace Manifestor
     {
         private static ListRequest _resolveRequest;
 
-        public static CustomBuildStepResult Tick(CustomBuildContext context)
+        public static ManifestorBuildStepResult Tick(ManifestorBuildContext context)
         {
             if (context?.profile == null)
             {
-                return CustomBuildStepResult.Failed("Manifest profile is required.");
+                return ManifestorBuildStepResult.Failed("Manifest profile is required.");
             }
 
             if (!TryLoadState(context.persistedState, out var state, out var stateError))
             {
-                return CustomBuildStepResult.Failed(stateError);
+                return ManifestorBuildStepResult.Failed(stateError);
             }
 
             if (context.cancellationRequested)
             {
                 return state.isActive
                     ? RollBack(context, state, "Manifest apply was cancelled.", cancelled: true)
-                    : CustomBuildStepResult.Cancelled("Manifest apply was cancelled before it started.");
+                    : ManifestorBuildStepResult.Cancelled("Manifest apply was cancelled before it started.");
             }
 
             if (!state.isActive)
             {
                 var beginResult = Begin(context, out state);
-                if (beginResult.outcome != CustomBuildStepOutcome.Waiting)
+                if (beginResult.outcome != ManifestorBuildStepOutcome.Waiting)
                 {
                     return beginResult;
                 }
             }
             else if (AssetDatabase.GetAssetPath(context.profile) != state.profilePath)
             {
-                return CustomBuildStepResult.Failed("A different manifest profile apply transaction is already active.");
+                return ManifestorBuildStepResult.Failed("A different manifest profile apply transaction is already active.");
             }
 
             try
@@ -55,7 +55,7 @@ namespace Manifestor
                 }
                 if (!_resolveRequest.IsCompleted)
                 {
-                    return CustomBuildStepResult.Waiting("Waiting for Unity Package Manager to resolve the manifest.");
+                    return ManifestorBuildStepResult.Waiting("Waiting for Unity Package Manager to resolve the manifest.");
                 }
 
                 if (_resolveRequest.Status != StatusCode.Success)
@@ -69,7 +69,7 @@ namespace Manifestor
                 ManifestorSettings.instance.SetLastAppliedManifest(state.profilePath, state.profileFingerprint);
                 ClearState(context);
 
-                return CustomBuildStepResult.Succeeded($"Applied manifest profile '{context.profile.profileName}'.");
+                return ManifestorBuildStepResult.Succeeded($"Applied manifest profile '{context.profile.profileName}'.");
             }
             catch (Exception exception)
             {
@@ -77,24 +77,24 @@ namespace Manifestor
             }
         }
 
-        public static CustomBuildStepResult HandleInterruption(CustomBuildContext context)
+        public static ManifestorBuildStepResult HandleInterruption(ManifestorBuildContext context)
         {
             if (context == null)
             {
-                return CustomBuildStepResult.Failed("Manifest apply context is required.");
+                return ManifestorBuildStepResult.Failed("Manifest apply context is required.");
             }
 
             if (!TryLoadState(context.persistedState, out var state, out var stateError))
             {
-                return CustomBuildStepResult.Failed(stateError);
+                return ManifestorBuildStepResult.Failed(stateError);
             }
 
             return state.isActive
                 ? RollBack(context, state, "Interrupted manifest apply was rolled back.", cancelled: true)
-                : CustomBuildStepResult.Cancelled("Manifest apply was interrupted before project state changed.");
+                : ManifestorBuildStepResult.Cancelled("Manifest apply was interrupted before project state changed.");
         }
 
-        private static CustomBuildStepResult Begin(CustomBuildContext context, out ApplyState state)
+        private static ManifestorBuildStepResult Begin(ManifestorBuildContext context, out ApplyState state)
         {
             state = new ApplyState();
             var profile = context.profile;
@@ -102,7 +102,7 @@ namespace Manifestor
             var validation = ManifestorProfileValidator.Validate(profile);
             if (!validation.success)
             {
-                return CustomBuildStepResult.Failed(validation.message);
+                return ManifestorBuildStepResult.Failed(validation.message);
             }
 
             try
@@ -134,13 +134,13 @@ namespace Manifestor
                 ApplyExactScriptingDefines(profile, namedBuildTarget);
                 Client.Resolve();
                 _resolveRequest = Client.List(offlineMode: false, includeIndirectDependencies: true);
-                return CustomBuildStepResult.Waiting("Waiting for Unity Package Manager to resolve the manifest.");
+                return ManifestorBuildStepResult.Waiting("Waiting for Unity Package Manager to resolve the manifest.");
             }
             catch (Exception exception)
             {
                 return state.isActive
                     ? RollBack(context, state, $"Failed to begin manifest apply: {exception.Message}")
-                    : CustomBuildStepResult.Failed($"Failed to begin manifest apply: {exception.Message}");
+                    : ManifestorBuildStepResult.Failed($"Failed to begin manifest apply: {exception.Message}");
             }
         }
 
@@ -154,8 +154,8 @@ namespace Manifestor
             PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", defines));
         }
 
-        private static CustomBuildStepResult RollBack(
-            CustomBuildContext context,
+        private static ManifestorBuildStepResult RollBack(
+            ManifestorBuildContext context,
             ApplyState state,
             string failureMessage,
             bool cancelled = false)
@@ -227,8 +227,8 @@ namespace Manifestor
                 ? string.Empty
                 : " Rollback also failed for " + string.Join(", ", rollbackErrors) + ".";
             return cancelled
-                ? CustomBuildStepResult.Cancelled(failureMessage + rollbackSuffix)
-                : CustomBuildStepResult.Failed(failureMessage + rollbackSuffix);
+                ? ManifestorBuildStepResult.Cancelled(failureMessage + rollbackSuffix)
+                : ManifestorBuildStepResult.Failed(failureMessage + rollbackSuffix);
         }
 
         private static bool TryLoadState(string json, out ApplyState state, out string error)
@@ -260,7 +260,7 @@ namespace Manifestor
             }
         }
 
-        private static void ClearState(CustomBuildContext context)
+        private static void ClearState(ManifestorBuildContext context)
         {
             _resolveRequest = null;
             context.SaveCheckpoint(string.Empty);

@@ -1,10 +1,10 @@
 using Manifestor.Build;
 
-[CustomBuildStep(typeof(BuildPlayerStep), CustomBuildStepOrder.Before, runDuringApply = true)]
-public class TestCustomBuild : ICustomBuildStep
+[ManifestorBuildStep(typeof(BuildPlayerStep), ManifestorBuildStepOrder.Before, runDuringApply = true)]
+public class TestManifestorBuild : IManifestorBuildStep
 {
-    public CustomBuildStepResult Tick(CustomBuildContext context)
+    public ManifestorBuildStepResult Tick(ManifestorBuildContext context)
     {
-        return CustomBuildStepResult.Succeeded();
+        return ManifestorBuildStepResult.Succeeded();
     }
 }

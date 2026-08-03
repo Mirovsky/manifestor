@@ -5,13 +5,13 @@ namespace Manifestor.Build
     using System.Linq;
     using UnityEditor;
 
-    public enum CustomBuildStepOrder
+    public enum ManifestorBuildStepOrder
     {
         Before,
         After
     }
 
-    public enum CustomBuildStepOutcome
+    public enum ManifestorBuildStepOutcome
     {
         Succeeded,
         Waiting,
@@ -20,47 +20,47 @@ namespace Manifestor.Build
     }
 
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
-    public sealed class CustomBuildStepAttribute : Attribute
+    public sealed class ManifestorBuildStepAttribute : Attribute
     {
         public Type relativeStepType { get; }
-        public CustomBuildStepOrder order { get; }
+        public ManifestorBuildStepOrder order { get; }
         public bool hasConstraint => relativeStepType != null;
         public bool runDuringApply { get; set; }
 
-        public CustomBuildStepAttribute()
+        public ManifestorBuildStepAttribute()
         {
         }
 
-        public CustomBuildStepAttribute(Type relativeStepType, CustomBuildStepOrder order)
+        public ManifestorBuildStepAttribute(Type relativeStepType, ManifestorBuildStepOrder order)
         {
             this.relativeStepType = relativeStepType ?? throw new ArgumentNullException(nameof(relativeStepType));
             this.order = order;
         }
     }
 
-    public interface ICustomBuildStep
+    public interface IManifestorBuildStep
     {
-        CustomBuildStepResult Tick(CustomBuildContext context);
+        ManifestorBuildStepResult Tick(ManifestorBuildContext context);
     }
 
-    public interface ICustomBuildStepInterruptionHandler
+    public interface IManifestorBuildStepInterruptionHandler
     {
-        CustomBuildStepResult HandleInterruption(CustomBuildContext context);
+        ManifestorBuildStepResult HandleInterruption(ManifestorBuildContext context);
     }
 
-    public sealed class CustomBuildContext
+    public sealed class ManifestorBuildContext
     {
         private readonly Action<string, BuildPlayerOptions> _saveCheckpoint;
 
         public ManifestProfileSO profile { get; }
-        public CustomBuildOperation operation { get; }
+        public ManifestorBuildOperation operation { get; }
         public bool cancellationRequested { get; }
         public string persistedState { get; private set; }
         public BuildPlayerOptions buildPlayerOptions { get; set; }
 
-        internal CustomBuildContext(
+        internal ManifestorBuildContext(
             ManifestProfileSO profile,
-            CustomBuildOperation operation,
+            ManifestorBuildOperation operation,
             BuildPlayerOptions buildPlayerOptions,
             bool cancellationRequested,
             string persistedState,
@@ -81,16 +81,16 @@ namespace Manifestor.Build
         }
     }
 
-    public readonly struct CustomBuildStepResult
+    public readonly struct ManifestorBuildStepResult
     {
-        public readonly CustomBuildStepOutcome outcome;
+        public readonly ManifestorBuildStepOutcome outcome;
         public readonly string message;
         public readonly double retryAfterSeconds;
 
-        public bool success => outcome == CustomBuildStepOutcome.Succeeded;
+        public bool success => outcome == ManifestorBuildStepOutcome.Succeeded;
 
-        private CustomBuildStepResult(
-            CustomBuildStepOutcome outcome,
+        private ManifestorBuildStepResult(
+            ManifestorBuildStepOutcome outcome,
             string message,
             double retryAfterSeconds = 0d)
         {
@@ -99,38 +99,38 @@ namespace Manifestor.Build
             this.retryAfterSeconds = retryAfterSeconds;
         }
 
-        public static CustomBuildStepResult Succeeded(string message = null)
+        public static ManifestorBuildStepResult Succeeded(string message = null)
         {
-            return new CustomBuildStepResult(CustomBuildStepOutcome.Succeeded, message);
+            return new ManifestorBuildStepResult(ManifestorBuildStepOutcome.Succeeded, message);
         }
 
-        public static CustomBuildStepResult Failed(string message)
+        public static ManifestorBuildStepResult Failed(string message)
         {
-            return new CustomBuildStepResult(CustomBuildStepOutcome.Failed, message);
+            return new ManifestorBuildStepResult(ManifestorBuildStepOutcome.Failed, message);
         }
 
-        public static CustomBuildStepResult Waiting(string message = null, double retryAfterSeconds = 1d)
+        public static ManifestorBuildStepResult Waiting(string message = null, double retryAfterSeconds = 1d)
         {
             if (retryAfterSeconds < 0d)
             {
                 throw new ArgumentOutOfRangeException(nameof(retryAfterSeconds));
             }
 
-            return new CustomBuildStepResult(CustomBuildStepOutcome.Waiting, message, retryAfterSeconds);
+            return new ManifestorBuildStepResult(ManifestorBuildStepOutcome.Waiting, message, retryAfterSeconds);
         }
 
-        public static CustomBuildStepResult Cancelled(string message = null)
+        public static ManifestorBuildStepResult Cancelled(string message = null)
         {
-            return new CustomBuildStepResult(CustomBuildStepOutcome.Cancelled, message);
+            return new ManifestorBuildStepResult(ManifestorBuildStepOutcome.Cancelled, message);
         }
     }
 
-    internal static class CustomBuildStepOrderResolver
+    internal static class ManifestorBuildStepOrderResolver
     {
         public static bool TryResolve(out List<Type> orderedSteps, out string error)
         {
             return TryResolve(
-                TypeCache.GetTypesWithAttribute<CustomBuildStepAttribute>(),
+                TypeCache.GetTypesWithAttribute<ManifestorBuildStepAttribute>(),
                 out orderedSteps,
                 out error);
         }
@@ -166,8 +166,8 @@ namespace Manifestor.Build
                 }
 
                 var attributes = stepType
-                    .GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
-                    .Cast<CustomBuildStepAttribute>();
+                    .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
+                    .Cast<ManifestorBuildStepAttribute>();
                 foreach (var attribute in attributes)
                 {
                     if (!attribute.hasConstraint)
@@ -187,8 +187,8 @@ namespace Manifestor.Build
                         continue;
                     }
 
-                    var before = attribute.order == CustomBuildStepOrder.Before ? stepType : relativeType;
-                    var after = attribute.order == CustomBuildStepOrder.Before ? relativeType : stepType;
+                    var before = attribute.order == ManifestorBuildStepOrder.Before ? stepType : relativeType;
+                    var after = attribute.order == ManifestorBuildStepOrder.Before ? relativeType : stepType;
                     if (outgoingEdges[before].Add(after))
                     {
                         incomingCounts[after]++;
@@ -225,9 +225,9 @@ namespace Manifestor.Build
                 return false;
             }
 
-            if (!typeof(ICustomBuildStep).IsAssignableFrom(stepType))
+            if (!typeof(IManifestorBuildStep).IsAssignableFrom(stepType))
             {
-                error = $"Custom build step '{stepType.FullName}' must implement {nameof(ICustomBuildStep)}.";
+                error = $"Custom build step '{stepType.FullName}' must implement {nameof(IManifestorBuildStep)}.";
                 return false;
             }
 

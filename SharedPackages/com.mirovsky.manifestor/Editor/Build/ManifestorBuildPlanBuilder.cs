@@ -4,14 +4,14 @@ namespace Manifestor.Build
     using System.Linq;
     using UnityEditor;
 
-    internal static class CustomBuildPlanBuilder
+    internal static class ManifestorBuildPlanBuilder
     {
         public static ManifestorResult TryCreate(
             ManifestProfileSO profile,
-            CustomBuildOperation operation,
+            ManifestorBuildOperation operation,
             string outputFolderPath,
             BuildOptions options,
-            out CustomBuildPipelineState state)
+            out ManifestorBuildPipelineState state)
         {
             state = null;
 
@@ -21,7 +21,7 @@ namespace Manifestor.Build
                 return validation;
             }
 
-            if (operation == CustomBuildOperation.Build && string.IsNullOrWhiteSpace(outputFolderPath))
+            if (operation == ManifestorBuildOperation.Build && string.IsNullOrWhiteSpace(outputFolderPath))
             {
                 return ManifestorResult.Error("Build output folder cannot be empty.");
             }
@@ -33,7 +33,7 @@ namespace Manifestor.Build
                 return ManifestorResult.Error("Manifest profile must be saved as a project asset before building.");
             }
 
-            if (!CustomBuildStepOrderResolver.TryResolve(out var allSteps, out var graphError))
+            if (!ManifestorBuildStepOrderResolver.TryResolve(out var allSteps, out var graphError))
             {
                 return ManifestorResult.Error(graphError);
             }
@@ -46,15 +46,15 @@ namespace Manifestor.Build
 
             try
             {
-                var buildPlayerOptions = operation == CustomBuildOperation.Build
+                var buildPlayerOptions = operation == ManifestorBuildOperation.Build
                     ? BuildPlayerOptionsFactory.Create(profile, outputFolderPath, options)
                     : default;
-                state = new CustomBuildPipelineState
+                state = new ManifestorBuildPipelineState
                 {
                     isActive = true,
-                    status = CustomBuildPipelineStatus.Waiting,
+                    status = ManifestorBuildPipelineStatus.Waiting,
                     operation = operation,
-                    message = operation == CustomBuildOperation.Apply
+                    message = operation == ManifestorBuildOperation.Apply
                         ? "Manifest apply queued."
                         : "Custom build queued.",
                     profileGuid = profileGuid,
@@ -73,9 +73,9 @@ namespace Manifestor.Build
 
         internal static System.Collections.Generic.List<Type> FilterForOperation(
             System.Collections.Generic.IEnumerable<Type> orderedSteps,
-            CustomBuildOperation operation)
+            ManifestorBuildOperation operation)
         {
-            return operation == CustomBuildOperation.Apply
+            return operation == ManifestorBuildOperation.Apply
                 ? orderedSteps.Where(RunsDuringApply).ToList()
                 : orderedSteps.ToList();
         }
@@ -83,8 +83,8 @@ namespace Manifestor.Build
         private static bool RunsDuringApply(Type stepType)
         {
             return stepType
-                .GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
-                .Cast<CustomBuildStepAttribute>()
+                .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
+                .Cast<ManifestorBuildStepAttribute>()
                 .Any(attribute => attribute.runDuringApply);
         }
     }

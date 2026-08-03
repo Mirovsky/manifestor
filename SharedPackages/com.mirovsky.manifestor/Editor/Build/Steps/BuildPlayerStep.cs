@@ -5,29 +5,29 @@ namespace Manifestor.Build
     using UnityEditor;
     using UnityEditor.Build.Reporting;
 
-    [CustomBuildStep(typeof(ApplyManifestBuildStep), CustomBuildStepOrder.After)]
-    public sealed class BuildPlayerStep : ICustomBuildStep
+    [ManifestorBuildStep(typeof(ApplyManifestBuildStep), ManifestorBuildStepOrder.After)]
+    public sealed class BuildPlayerStep : IManifestorBuildStep
     {
-        public CustomBuildStepResult Tick(CustomBuildContext context)
+        public ManifestorBuildStepResult Tick(ManifestorBuildContext context)
         {
             if (context?.profile?.buildProfile == null)
             {
-                return CustomBuildStepResult.Failed("A manifest profile with a Unity Build Profile is required.");
+                return ManifestorBuildStepResult.Failed("A manifest profile with a Unity Build Profile is required.");
             }
 
             if (context.cancellationRequested)
             {
-                return CustomBuildStepResult.Cancelled("Player build was cancelled before it started.");
+                return ManifestorBuildStepResult.Cancelled("Player build was cancelled before it started.");
             }
 
             var originalBuildTarget = EditorUserBuildSettings.activeBuildTarget;
-            CustomBuildStepResult result;
+            ManifestorBuildStepResult result;
             try
             {
                 var buildPlayerOptions = ApplyDefaults(context);
                 if (!SwitchActiveBuildTarget(buildPlayerOptions.target, buildPlayerOptions.targetGroup))
                 {
-                    result = CustomBuildStepResult.Failed(
+                    result = ManifestorBuildStepResult.Failed(
                         $"Unity could not switch to build target '{buildPlayerOptions.target}'.");
                     return RestoreBuildTargetAfterFailure(result, originalBuildTarget);
                 }
@@ -42,19 +42,19 @@ namespace Manifestor.Build
 
                 result = report.summary.result switch
                 {
-                    BuildResult.Succeeded => CustomBuildStepResult.Succeeded(
+                    BuildResult.Succeeded => ManifestorBuildStepResult.Succeeded(
                         $"Build succeeded at '{buildPlayerOptions.locationPathName}': " +
                         $"{report.summary.totalSize} bytes."),
-                    BuildResult.Cancelled => CustomBuildStepResult.Cancelled(
+                    BuildResult.Cancelled => ManifestorBuildStepResult.Cancelled(
                         $"Build to '{buildPlayerOptions.locationPathName}' was cancelled."),
-                    _ => CustomBuildStepResult.Failed(
+                    _ => ManifestorBuildStepResult.Failed(
                         $"Build to '{buildPlayerOptions.locationPathName}' failed with " +
                         $"{report.summary.totalErrors} error(s).")
                 };
             }
             catch (Exception exception)
             {
-                result = CustomBuildStepResult.Failed($"Failed to build player: {exception.Message}");
+                result = ManifestorBuildStepResult.Failed($"Failed to build player: {exception.Message}");
             }
 
             return result.success
@@ -62,7 +62,7 @@ namespace Manifestor.Build
                 : RestoreBuildTargetAfterFailure(result, originalBuildTarget);
         }
 
-        private static BuildPlayerOptions ApplyDefaults(CustomBuildContext context)
+        private static BuildPlayerOptions ApplyDefaults(ManifestorBuildContext context)
         {
             var buildPlayerOptions = context.buildPlayerOptions;
             var usesDefaultTarget = buildPlayerOptions.target is 0 or BuildTarget.NoTarget;
@@ -101,8 +101,8 @@ namespace Manifestor.Build
                    EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
         }
 
-        private static CustomBuildStepResult RestoreBuildTargetAfterFailure(
-            CustomBuildStepResult buildResult,
+        private static ManifestorBuildStepResult RestoreBuildTargetAfterFailure(
+            ManifestorBuildStepResult buildResult,
             BuildTarget originalBuildTarget)
         {
             try
@@ -113,12 +113,12 @@ namespace Manifestor.Build
                     return buildResult;
                 }
 
-                return CustomBuildStepResult.Failed(
+                return ManifestorBuildStepResult.Failed(
                     $"{buildResult.message} Unity could not restore build target '{originalBuildTarget}'.");
             }
             catch (Exception exception)
             {
-                return CustomBuildStepResult.Failed(
+                return ManifestorBuildStepResult.Failed(
                     $"{buildResult.message} Failed to restore build target '{originalBuildTarget}': {exception.Message}");
             }
         }

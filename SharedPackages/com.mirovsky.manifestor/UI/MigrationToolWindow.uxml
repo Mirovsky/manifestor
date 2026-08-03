@@ -15,5 +15,5 @@
         <ui:ListView name="ContentListView" virtualization-method="DynamicHeight" binding-source-selection-mode="AutoAssign" data-source-path="rows" item-template="project://database/Packages/com.mirovsky.manifestor/UI/PackageItem.uxml?fileID=9197481963319205126&amp;guid=6b9f2b78be20e8f46b9bcb9cf6703013&amp;type=3#PackageItem" allow-add="false" allow-remove="false" selection-type="None" show-alternating-row-backgrounds="All" data-source-type="Manifestor.UI.ManifestorMigrateTool+ViewDataModel, com.mirovsky.manifestor"/>
         <ui:Label text="No migration required." name="EmptyContentList" style="position: absolute; width: 100%; height: 100%; -unity-text-align: middle-center; color: rgb(173, 173, 173);"/>
     </ui:VisualElement>
-    <ui:HelpBox name="ChangesHelpBox" text="The current manifest.json differs from your Package Lists. Select which Package Lists should be updated to match the manifest." message-type="Warning" data-source-path="" style="display: none; margin-top: 2px; margin-bottom: 2px;"/>
+    <ui:HelpBox name="ChangesHelpBox" text="The current manifest.json differs from your Package Lists. Select which Package Lists should be updated to match the manifest." message-type="Warning" data-source-path="" style="display: flex; margin-top: 2px; margin-bottom: 2px; flex-shrink: 0;"/>
 </ui:UXML>

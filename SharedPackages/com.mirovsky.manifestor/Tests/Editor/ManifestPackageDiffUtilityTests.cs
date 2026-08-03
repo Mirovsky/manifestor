@@ -34,9 +34,9 @@ namespace Manifestor.Editor.Tests
             Assert.That(result.allChanges, Is.Empty);
         }
 
-        private static PackagesListSO CreatePackageList(params (string packageName, string location)[] packages)
+        private static ManifestorPackagesListSO CreatePackageList(params (string packageName, string location)[] packages)
         {
-            var packageList = ScriptableObject.CreateInstance<PackagesListSO>();
+            var packageList = ScriptableObject.CreateInstance<ManifestorPackagesListSO>();
             foreach (var package in packages)
             {
                 packageList.AddPackage(package.packageName, package.location);

@@ -40,7 +40,7 @@ namespace Manifestor
             return errors.Count == 0 ? ManifestorResult.Ok() : CreateError(errors);
         }
 
-        private static void ValidatePackageLists(IReadOnlyList<PackagesListSO> packageLists, List<string> errors)
+        private static void ValidatePackageLists(IReadOnlyList<ManifestorPackagesListSO> packageLists, List<string> errors)
         {
             if (packageLists == null || packageLists.Count == 0)
             {
@@ -48,7 +48,7 @@ namespace Manifestor
                 return;
             }
 
-            var seenPackageLists = new HashSet<PackagesListSO>();
+            var seenPackageLists = new HashSet<ManifestorPackagesListSO>();
             var packageOwners = new Dictionary<string, string>(StringComparer.Ordinal);
             var registryOwners = new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -74,7 +74,7 @@ namespace Manifestor
         }
 
         private static void ValidatePackages(
-            PackagesListSO packageList,
+            ManifestorPackagesListSO packageList,
             string owner,
             Dictionary<string, string> packageOwners,
             List<string> errors)
@@ -116,7 +116,7 @@ namespace Manifestor
         }
 
         private static void ValidateScopedRegistries(
-            PackagesListSO packageList,
+            ManifestorPackagesListSO packageList,
             string owner,
             Dictionary<string, string> registryOwners,
             List<string> errors)

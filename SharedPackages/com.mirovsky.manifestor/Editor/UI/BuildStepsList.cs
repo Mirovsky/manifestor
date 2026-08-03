@@ -96,8 +96,8 @@ namespace Manifestor.UI
                 }
 
                 var runsDuringApply = step
-                    .GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
-                    .Cast<CustomBuildStepAttribute>()
+                    .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
+                    .Cast<ManifestorBuildStepAttribute>()
                     .Any(attribute => attribute.runDuringApply);
                 (runsDuringApply ? applySteps : buildSteps).Add(step);
             }

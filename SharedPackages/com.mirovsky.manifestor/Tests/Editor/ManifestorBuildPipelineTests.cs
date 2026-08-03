@@ -7,18 +7,18 @@ namespace Manifestor.Editor.Tests
     using UnityEngine;
     using UnityEngine.TestTools;
 
-    public sealed class CustomBuildPipelineTests
+    public sealed class ManifestorBuildPipelineTests
     {
         [TearDown]
         public void TearDown()
         {
-            SessionState.EraseString(CustomBuildPipelineStateStore.StateKey);
+            SessionState.EraseString(ManifestorBuildPipelineStateStore.StateKey);
         }
 
         [Test]
         public void Resolve_FullOrderPlacesConstrainedStepsBeforeBuildPlayer()
         {
-            var success = CustomBuildStepOrderResolver.TryResolve(
+            var success = ManifestorBuildStepOrderResolver.TryResolve(
                 new[] { typeof(BuildPlayerStep), typeof(ApplyManifestBuildStep) },
                 out var steps,
                 out var error);
@@ -36,7 +36,7 @@ namespace Manifestor.Editor.Tests
                 typeof(BuildPlayerStep)
             };
 
-            var applySteps = CustomBuildPlanBuilder.FilterForOperation(resolved, CustomBuildOperation.Apply);
+            var applySteps = ManifestorBuildPlanBuilder.FilterForOperation(resolved, ManifestorBuildOperation.Apply);
 
             Assert.That(applySteps, Is.EqualTo(resolved.Take(1)));
         }
@@ -44,9 +44,9 @@ namespace Manifestor.Editor.Tests
         [Test]
         public void Waiting_StoresRequestedRetryDelay()
         {
-            var result = CustomBuildStepResult.Waiting("Resolving", 2.5d);
+            var result = ManifestorBuildStepResult.Waiting("Resolving", 2.5d);
 
-            Assert.That(result.outcome, Is.EqualTo(CustomBuildStepOutcome.Waiting));
+            Assert.That(result.outcome, Is.EqualTo(ManifestorBuildStepOutcome.Waiting));
             Assert.That(result.retryAfterSeconds, Is.EqualTo(2.5d));
             Assert.That(result.success, Is.False);
         }
@@ -56,9 +56,9 @@ namespace Manifestor.Editor.Tests
         {
             string savedState = null;
             BuildPlayerOptions savedOptions = default;
-            var context = new CustomBuildContext(
+            var context = new ManifestorBuildContext(
                 null,
-                CustomBuildOperation.Build,
+                ManifestorBuildOperation.Build,
                 new BuildPlayerOptions { locationPathName = "initial" },
                 false,
                 string.Empty,
@@ -79,16 +79,16 @@ namespace Manifestor.Editor.Tests
         [Test]
         public void Restore_RunningStateFailsWithoutExecutingStep()
         {
-            CustomBuildPipelineStateStore.Save(new CustomBuildPipelineState
+            ManifestorBuildPipelineStateStore.Save(new ManifestorBuildPipelineState
             {
                 isActive = true,
-                status = CustomBuildPipelineStatus.Running,
+                status = ManifestorBuildPipelineStatus.Running,
                 currentStepTypeName = typeof(ApplyManifestBuildStep).AssemblyQualifiedName
             });
             var completed = false;
-            var runner = new CustomBuildRunner((_, status) =>
+            var runner = new ManifestorBuildRunner((_, status) =>
             {
-                completed = status == CustomBuildPipelineStatus.Failed;
+                completed = status == ManifestorBuildPipelineStatus.Failed;
             });
             LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("was interrupted"));
 
@@ -96,38 +96,38 @@ namespace Manifestor.Editor.Tests
 
             Assert.That(shouldResume, Is.False);
             Assert.That(completed, Is.True);
-            Assert.That(CustomBuildPipelineStateStore.Load().isActive, Is.False);
-            Assert.That(CustomBuildPipelineStateStore.Load().status, Is.EqualTo(CustomBuildPipelineStatus.Failed));
+            Assert.That(ManifestorBuildPipelineStateStore.Load().isActive, Is.False);
+            Assert.That(ManifestorBuildPipelineStateStore.Load().status, Is.EqualTo(ManifestorBuildPipelineStatus.Failed));
         }
 
         [Test]
         public void Cancel_RecordsRequestForActivePipeline()
         {
-            CustomBuildPipelineStateStore.Save(new CustomBuildPipelineState
+            ManifestorBuildPipelineStateStore.Save(new ManifestorBuildPipelineState
             {
                 isActive = true,
-                status = CustomBuildPipelineStatus.Waiting
+                status = ManifestorBuildPipelineStatus.Waiting
             });
-            var runner = new CustomBuildRunner(null);
+            var runner = new ManifestorBuildRunner(null);
 
             var result = runner.Cancel();
 
             Assert.That(result.success, Is.True);
-            Assert.That(CustomBuildPipelineStateStore.Load().cancellationRequested, Is.True);
+            Assert.That(ManifestorBuildPipelineStateStore.Load().cancellationRequested, Is.True);
         }
 
         [Test]
         public void Load_UnsupportedStateVersionIsClearedAsFailure()
         {
             SessionState.SetString(
-                CustomBuildPipelineStateStore.StateKey,
-                JsonUtility.ToJson(new CustomBuildPipelineState { version = CustomBuildPipelineState.CurrentVersion + 1 }));
+                ManifestorBuildPipelineStateStore.StateKey,
+                JsonUtility.ToJson(new ManifestorBuildPipelineState { version = ManifestorBuildPipelineState.CurrentVersion + 1 }));
 
-            var state = CustomBuildPipelineStateStore.Load();
+            var state = ManifestorBuildPipelineStateStore.Load();
 
             Assert.That(state.isActive, Is.False);
-            Assert.That(state.status, Is.EqualTo(CustomBuildPipelineStatus.Failed));
-            Assert.That(SessionState.GetString(CustomBuildPipelineStateStore.StateKey, string.Empty), Is.Empty);
+            Assert.That(state.status, Is.EqualTo(ManifestorBuildPipelineStatus.Failed));
+            Assert.That(SessionState.GetString(ManifestorBuildPipelineStateStore.StateKey, string.Empty), Is.Empty);
         }
     }
 }

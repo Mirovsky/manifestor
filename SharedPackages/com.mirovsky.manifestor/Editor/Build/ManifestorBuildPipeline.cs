@@ -5,7 +5,7 @@ namespace Manifestor.Build
     using UnityEditor;
     using UnityEngine;
 
-    public enum CustomBuildPipelineStatus
+    public enum ManifestorBuildPipelineStatus
     {
         Idle,
         Waiting,
@@ -15,40 +15,40 @@ namespace Manifestor.Build
         Cancelled
     }
 
-    public enum CustomBuildOperation
+    public enum ManifestorBuildOperation
     {
         Apply,
         Build
     }
 
     [InitializeOnLoad]
-    public static class CustomBuildPipeline
+    public static class ManifestorBuildPipeline
     {
-        private static readonly CustomBuildRunner Runner = new(InvokeCompleted);
+        private static readonly ManifestorBuildRunner Runner = new(InvokeCompleted);
 
-        public static bool isActive => CustomBuildRunner.isActive;
+        public static bool isActive => ManifestorBuildRunner.isActive;
 
-        public static event Action<CustomBuildOperation, CustomBuildPipelineStatus> completed;
+        public static event Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> completed;
 
-        static CustomBuildPipeline()
+        static ManifestorBuildPipeline()
         {
-            CustomBuildScheduler.Initialize(Runner.Tick);
+            ManifestorBuildScheduler.Initialize(Runner.Tick);
             if (Runner.Restore())
             {
-                CustomBuildScheduler.Queue();
+                ManifestorBuildScheduler.Queue();
             }
         }
 
         public static bool TryGetOrderedSteps(out IReadOnlyList<Type> orderedSteps, out string error)
         {
-            var success = CustomBuildStepOrderResolver.TryResolve(out var steps, out error);
+            var success = ManifestorBuildStepOrderResolver.TryResolve(out var steps, out error);
             orderedSteps = steps.AsReadOnly();
             return success;
         }
 
         public static ManifestorResult Apply(ManifestProfileSO profile)
         {
-            return Start(profile, CustomBuildOperation.Apply, string.Empty, BuildOptions.None);
+            return Start(profile, ManifestorBuildOperation.Apply, string.Empty, BuildOptions.None);
         }
 
         public static ManifestorResult Build(
@@ -56,7 +56,7 @@ namespace Manifestor.Build
             string outputFolderPath,
             BuildOptions options = BuildOptions.None)
         {
-            return Start(profile, CustomBuildOperation.Build, outputFolderPath, options);
+            return Start(profile, ManifestorBuildOperation.Build, outputFolderPath, options);
         }
 
         public static ManifestorResult Cancel()
@@ -64,7 +64,7 @@ namespace Manifestor.Build
             var result = Runner.Cancel();
             if (result.success)
             {
-                CustomBuildScheduler.Queue();
+                ManifestorBuildScheduler.Queue();
             }
 
             return result;
@@ -72,16 +72,16 @@ namespace Manifestor.Build
 
         private static ManifestorResult Start(
             ManifestProfileSO profile,
-            CustomBuildOperation operation,
+            ManifestorBuildOperation operation,
             string outputFolderPath,
             BuildOptions options)
         {
-            if (CustomBuildRunner.isActive || BuildPipeline.isBuildingPlayer)
+            if (ManifestorBuildRunner.isActive || BuildPipeline.isBuildingPlayer)
             {
                 return ManifestorResult.Error("A custom build is already in progress.");
             }
 
-            var planResult = CustomBuildPlanBuilder.TryCreate(
+            var planResult = ManifestorBuildPlanBuilder.TryCreate(
                 profile,
                 operation,
                 outputFolderPath,
@@ -95,15 +95,15 @@ namespace Manifestor.Build
             var startResult = Runner.Start(state);
             if (startResult.success)
             {
-                CustomBuildScheduler.Queue();
+                ManifestorBuildScheduler.Queue();
             }
 
             return startResult;
         }
 
         private static void InvokeCompleted(
-            CustomBuildOperation operation,
-            CustomBuildPipelineStatus status)
+            ManifestorBuildOperation operation,
+            ManifestorBuildPipelineStatus status)
         {
             var handlers = completed;
             if (handlers == null)
@@ -113,7 +113,7 @@ namespace Manifestor.Build
 
             foreach (var handler in handlers.GetInvocationList())
             {
-                if (handler is not Action<CustomBuildOperation, CustomBuildPipelineStatus> buildHandler)
+                if (handler is not Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> buildHandler)
                 {
                     Debug.LogError("Handler is not of type Action<CustomBuildOperation, CustomBuildPipelineStatus>");
                     continue;

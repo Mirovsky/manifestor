@@ -12,11 +12,11 @@ namespace Manifestor
     {
         [SerializeField] private string _profileName;
         [SerializeField] private BuildProfile _buildProfile;
-        [SerializeField] private PackagesListSO[] _packageLists;
+        [SerializeField] private ManifestorPackagesListSO[] _packageLists;
 
         public string profileName => _profileName;
         public BuildProfile buildProfile => _buildProfile;
-        public IReadOnlyList<PackagesListSO> packagesLists => _packageLists ?? Array.Empty<PackagesListSO>();
+        public IReadOnlyList<ManifestorPackagesListSO> packagesLists => _packageLists ?? Array.Empty<ManifestorPackagesListSO>();
     }
 
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]

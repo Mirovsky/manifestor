@@ -6,14 +6,14 @@ namespace Manifestor.Build
     using UnityEngine;
 
     [Serializable]
-    internal sealed class CustomBuildPipelineState
+    internal sealed class ManifestorBuildPipelineState
     {
         public const int CurrentVersion = 1;
 
         public int version = CurrentVersion;
         public bool isActive;
-        public CustomBuildPipelineStatus status;
-        public CustomBuildOperation operation;
+        public ManifestorBuildPipelineStatus status;
+        public ManifestorBuildOperation operation;
         public string message;
         public string profileGuid;
         public string profileFingerprint;
@@ -69,22 +69,22 @@ namespace Manifestor.Build
         }
     }
 
-    internal static class CustomBuildPipelineStateStore
+    internal static class ManifestorBuildPipelineStateStore
     {
         internal const string StateKey = "Manifestor.CustomBuildPipeline.State";
 
-        public static CustomBuildPipelineState Load()
+        public static ManifestorBuildPipelineState Load()
         {
             var json = SessionState.GetString(StateKey, string.Empty);
             if (string.IsNullOrEmpty(json))
             {
-                return new CustomBuildPipelineState();
+                return new ManifestorBuildPipelineState();
             }
 
             try
             {
-                var state = JsonUtility.FromJson<CustomBuildPipelineState>(json);
-                if (state == null || state.version != CustomBuildPipelineState.CurrentVersion)
+                var state = JsonUtility.FromJson<ManifestorBuildPipelineState>(json);
+                if (state == null || state.version != ManifestorBuildPipelineState.CurrentVersion)
                 {
                     SessionState.EraseString(StateKey);
                     return FailedState("Custom build state has an unsupported version and was cleared.");
@@ -100,16 +100,16 @@ namespace Manifestor.Build
             }
         }
 
-        public static void Save(CustomBuildPipelineState state)
+        public static void Save(ManifestorBuildPipelineState state)
         {
             SessionState.SetString(StateKey, JsonUtility.ToJson(state));
         }
 
-        private static CustomBuildPipelineState FailedState(string message)
+        private static ManifestorBuildPipelineState FailedState(string message)
         {
-            return new CustomBuildPipelineState
+            return new ManifestorBuildPipelineState
             {
-                status = CustomBuildPipelineStatus.Failed,
+                status = ManifestorBuildPipelineStatus.Failed,
                 message = message
             };
         }

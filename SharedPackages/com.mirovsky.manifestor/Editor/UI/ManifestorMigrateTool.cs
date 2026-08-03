@@ -247,7 +247,7 @@ namespace Manifestor.UI
             };
         }
 
-        private static bool IsTargetPackageList(ManifestPackageDiffEntry change, PackagesListSO packageList)
+        private static bool IsTargetPackageList(ManifestPackageDiffEntry change, ManifestorPackagesListSO packageList)
         {
             if (packageList.packages == null)
             {
@@ -318,11 +318,11 @@ namespace Manifestor.UI
         public class PackageListSelection
         {
             public string packageListName;
-            public PackagesListSO packageList;
+            public ManifestorPackagesListSO packageList;
             public string assetPath;
             public bool selected;
 
-            public PackageListSelection(PackagesListSO packageList, string assetPath, bool selected)
+            public PackageListSelection(ManifestorPackagesListSO packageList, string assetPath, bool selected)
             {
                 packageListName = packageList.name;
 

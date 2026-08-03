@@ -47,11 +47,11 @@ namespace Manifestor.Editor.Tests
             Assert.That(rows[0].targets[0].selected, Is.True);
         }
 
-        private static PackagesListSO CreatePackageList(
+        private static ManifestorPackagesListSO CreatePackageList(
             string name,
             params (string packageName, string location)[] packages)
         {
-            var packageList = ScriptableObject.CreateInstance<PackagesListSO>();
+            var packageList = ScriptableObject.CreateInstance<ManifestorPackagesListSO>();
             packageList.name = name;
             foreach (var package in packages)
             {

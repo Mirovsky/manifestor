@@ -3,7 +3,7 @@ namespace Manifestor.Build
     using System;
     using UnityEditor;
 
-    internal static class CustomBuildScheduler
+    internal static class ManifestorBuildScheduler
     {
         private static Action _tick;
         private static bool _isQueued;

@@ -5,10 +5,10 @@
     [Serializable]
     public struct PackageListTarget
     {
-        public PackagesListSO packageList;
+        public ManifestorPackagesListSO packageList;
         public string assetPath;
 
-        public PackageListTarget(PackagesListSO packageList, string assetPath)
+        public PackageListTarget(ManifestorPackagesListSO packageList, string assetPath)
         {
             this.packageList = packageList;
             this.assetPath = assetPath ?? string.Empty;

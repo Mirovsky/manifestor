@@ -22,7 +22,7 @@ namespace Manifestor
                 return;
             }
 
-            if (CustomBuildPipeline.isActive)
+            if (ManifestorBuildPipeline.isActive)
             {
                 return;
             }
@@ -63,7 +63,7 @@ namespace Manifestor
                 return;
             }
 
-            var result = CustomBuildPipeline.Apply(profile);
+            var result = ManifestorBuildPipeline.Apply(profile);
             if (!result.success)
             {
                 Debug.LogWarning($"Manifestor startup apply skipped: {result.message}");
