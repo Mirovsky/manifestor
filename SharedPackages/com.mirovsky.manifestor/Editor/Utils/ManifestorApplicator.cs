@@ -151,6 +151,7 @@ namespace Manifestor
                 .Select(define => (define ?? string.Empty).Trim())
                 .Where(define => !string.IsNullOrEmpty(define))
                 .Distinct(StringComparer.Ordinal);
+
             PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", defines));
         }
 

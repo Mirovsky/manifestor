@@ -69,7 +69,7 @@ namespace Manifestor.UI
         [MenuItem("Tools/Manifestor/Custom Build")]
         public static void ShowWindow()
         {
-            var window = GetWindow<CustomBuildWindow>("Custom Build");
+            var window = GetWindow<CustomBuildWindow>("Manifestor Build");
             window.Refresh();
             window.Show();
         }

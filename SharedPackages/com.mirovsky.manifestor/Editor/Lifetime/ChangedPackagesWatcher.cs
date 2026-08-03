@@ -20,6 +20,11 @@ namespace Manifestor
 
         private static void EventsOnRegisteredPackages(PackageRegistrationEventArgs args)
         {
+            if (ManifestorBuildPipeline.isActive)
+            {
+                return;
+            }
+
             if (args.added.Count == 0 &&
                 args.removed.Count == 0 &&
                 args.changedFrom.Count == 0 &&
@@ -51,15 +56,18 @@ namespace Manifestor
             }
 
             if (EditorApplication.isCompiling ||
-                EditorApplication.isUpdating ||
-                ManifestorBuildPipeline.isActive)
+                EditorApplication.isUpdating)
             {
                 _checkAfter = EditorApplication.timeSinceStartup + DebounceSeconds;
                 return;
             }
 
-            EditorApplication.update -= CheckForActionableChanges;
-            _refreshQueued = false;
+            StopQueuedDiffCheck();
+            if (ManifestorBuildPipeline.isActive)
+            {
+                return;
+            }
+
             try
             {
                 if (ManifestPackageDiffUtility.CreateManifestDiff().hasChanges)
@@ -71,6 +79,12 @@ namespace Manifestor
             {
                 Debug.LogWarning($"Manifestor could not inspect package changes: {exception.Message}");
             }
+        }
+
+        private static void StopQueuedDiffCheck()
+        {
+            EditorApplication.update -= CheckForActionableChanges;
+            _refreshQueued = false;
         }
     }
 }

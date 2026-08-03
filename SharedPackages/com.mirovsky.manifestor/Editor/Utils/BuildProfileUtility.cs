@@ -4,7 +4,7 @@ namespace Manifestor.Build
     using UnityEditor;
     using UnityEditor.Build.Profile;
 
-    internal static class BuildProfileUtility
+    public static class BuildProfileUtility
     {
         private const string BuildTargetPropertyName = "m_BuildTarget";
         private const string SubtargetPropertyName = "m_Subtarget";
