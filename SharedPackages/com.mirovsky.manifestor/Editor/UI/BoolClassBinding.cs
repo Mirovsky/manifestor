@@ -14,7 +14,15 @@
 
         public object dataSource { get; set; }
 
+        [CreateProperty]
         public PropertyPath dataSourcePath { get; set; }
+
+        [UxmlAttribute("data-source-path")]
+        private string dataSourcePathString
+        {
+            get => dataSourcePath.ToString();
+            set => dataSourcePath = new PropertyPath(value);
+        }
 
         public BoolClassBinding()
         {

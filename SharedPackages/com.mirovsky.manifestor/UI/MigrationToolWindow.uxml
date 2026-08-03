@@ -7,9 +7,13 @@
             <uie:ToolbarButton text="" icon-image="project://database/Packages/com.unity.ai.assistant/Editor/UI/Assets/icons/Refresh.png?fileID=2800000&amp;guid=d4ec5054f34167e46b8b3c36f080bbfa&amp;type=3#Refresh" name="RefreshButton" style="padding-top: 3px; padding-left: 3px; padding-bottom: 3px; padding-right: 3px;"/>
         </ui:VisualElement>
     </uie:Toolbar>
-    <ui:HelpBox text="Your ManifestProfiles and current manifest.json differ. Pick what you want to do with each added/removed or modified entry. It will be overwritten on next editor load." message-type="Warning" data-source-path="" style="margin-top: 2px; margin-bottom: 2px;"/>
+    <ui:VisualElement name="BulkSelectionHeader" class="manifestor-migration-bulk-selection">
+        <ui:Label text="Apply all changes to:" class="manifestor-migration-bulk-selection__label"/>
+        <ui:VisualElement name="BulkSelectionToggles" class="manifestor-migration-bulk-selection__toggles"/>
+    </ui:VisualElement>
     <ui:VisualElement name="ContentList" style="flex-grow: 1;">
-        <ui:ListView name="ContentListView" virtualization-method="DynamicHeight" binding-source-selection-mode="AutoAssign" show-bound-collection-size="true" data-source-path="rows" item-template="project://database/Packages/com.mirovsky.manifestor/UI/PackageItem.uxml?fileID=9197481963319205126&amp;guid=6b9f2b78be20e8f46b9bcb9cf6703013&amp;type=3#PackageItem" allow-add="false" allow-remove="false" selection-type="None" show-alternating-row-backgrounds="All" data-source-type="Manifestor.UI.ManifestorMigrateTool+ViewDataModel, com.mirovsky.manifestor"/>
+        <ui:ListView name="ContentListView" virtualization-method="DynamicHeight" binding-source-selection-mode="AutoAssign" data-source-path="rows" item-template="project://database/Packages/com.mirovsky.manifestor/UI/PackageItem.uxml?fileID=9197481963319205126&amp;guid=6b9f2b78be20e8f46b9bcb9cf6703013&amp;type=3#PackageItem" allow-add="false" allow-remove="false" selection-type="None" show-alternating-row-backgrounds="All" data-source-type="Manifestor.UI.ManifestorMigrateTool+ViewDataModel, com.mirovsky.manifestor"/>
         <ui:Label text="No migration required." name="EmptyContentList" style="position: absolute; width: 100%; height: 100%; -unity-text-align: middle-center; color: rgb(173, 173, 173);"/>
     </ui:VisualElement>
+    <ui:HelpBox name="ChangesHelpBox" text="The current manifest.json differs from your Package Lists. Select which Package Lists should be updated to match the manifest." message-type="Warning" data-source-path="" style="display: none; margin-top: 2px; margin-bottom: 2px;"/>
 </ui:UXML>

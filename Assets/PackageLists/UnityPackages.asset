@@ -13,8 +13,6 @@ MonoBehaviour:
   m_Name: UnityPackages
   m_EditorClassIdentifier: mirov.manifestor.editor::Mirov.Manifestor.Editor.ManifestCommonProfile
   _packages:
-  - _packageName: com.unity.2d.sprite
-    _location: 1.0.0
   - _packageName: com.unity.ai.assistant
     _location: 2.16.0-pre.1
   - _packageName: com.unity.collections
@@ -107,5 +105,8 @@ MonoBehaviour:
     _location: 6.5.0
   - _packageName: com.unity.modules.hierarchy
     _location: 1.0.0
+  - _packageName: com.unity.2d.animation
+    _location: 15.1.0
   _defines: []
   _scopedRegistries: []
+  _testables: []
