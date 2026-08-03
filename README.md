@@ -106,26 +106,26 @@ If no custom type is marked, Manifestor creates `ManifestProfileSO`. If more tha
 
 ### Custom build steps
 
-Implement `ICustomBuildStep` and mark the class with `[CustomBuildStep]`. Steps must be concrete, non-generic classes with a public parameterless constructor.
+Implement `IManifestorBuildStep` and mark the class with `[ManifestorBuildStep]`. Steps must be concrete, non-generic classes with a public parameterless constructor.
 
 ```csharp
 using Manifestor.Build;
 
-[CustomBuildStep(
+[ManifestorBuildStep(
     typeof(ApplyManifestBuildStep),
-    CustomBuildStepOrder.Before,
+    ManifestorBuildStepOrder.Before,
     runDuringApply = true)]
-public sealed class ValidateContentStep : ICustomBuildStep
+public sealed class ValidateContentStep : IManifestorBuildStep
 {
-    public CustomBuildStepResult Execute(CustomBuildContext context)
+    public ManifestorBuildStepResult Tick(ManifestorBuildContext context)
     {
         if (context.profile == null)
         {
-            return CustomBuildStepResult.Failed("A manifest profile is required.");
+            return ManifestorBuildStepResult.Failed("A manifest profile is required.");
         }
 
         // Validate or prepare project content here.
-        return CustomBuildStepResult.Succeeded();
+        return ManifestorBuildStepResult.Succeeded();
     }
 }
 ```
@@ -137,7 +137,7 @@ Set `runDuringApply = true` for steps that should run when **Apply Manifest** is
 1. `ApplyManifestBuildStep`, which applies and resolves the selected profile.
 2. `BuildPlayerStep`, which runs after the apply step and invokes Unity's player build.
 
-`CustomBuildContext` provides the selected `profile` and a mutable Unity `BuildPlayerOptions` value. A step can replace `context.buildPlayerOptions` to configure scenes, output location, target, subtarget, build flags, asset-bundle manifest, or extra scripting defines for later steps. Changes are retained when a step succeeds or waits. The final player step fills unset target, target group, subtarget, scenes, and location from the active build profile and Unity's saved build settings.
+`ManifestorBuildContext` provides the selected `profile` and a mutable Unity `BuildPlayerOptions` value. A step can replace `context.buildPlayerOptions` to configure scenes, output location, target, subtarget, build flags, asset-bundle manifest, or extra scripting defines for later steps. Changes are retained when a step succeeds or waits. The final player step fills unset target, target group, subtarget, scenes, and location from the active build profile and Unity's saved build settings.
 
 Because `BuildPlayerOptions` is a struct, copy it, modify the copy, and assign it back:
 
@@ -147,12 +147,30 @@ buildPlayerOptions.options |= BuildOptions.Development;
 context.buildPlayerOptions = buildPlayerOptions;
 ```
 
+Steps can also exchange string values through build-scoped user data. Values survive package resolution and editor reloads while the pipeline is active, and are cleared when it succeeds, fails, or is cancelled. Use step ordering to place the writer before the player build and the reader after it:
+
+```csharp
+private const string PreviousSettingKey = "example.previous-setting";
+
+// In a step ordered before BuildPlayerStep:
+context.SetUserData(PreviousSettingKey, ReadCurrentSetting());
+
+// In a step ordered after BuildPlayerStep:
+if (context.TryGetUserData(PreviousSettingKey, out var previousSetting))
+{
+    RestoreSetting(previousSetting);
+    context.RemoveUserData(PreviousSettingKey);
+}
+```
+
+Keys are shared across all steps in the current Apply or Build operation. Setting an existing key overwrites it, and a null value is stored as an empty string. Later steps do not run when an earlier step fails or is cancelled, so this ordering mechanism is intended for successful build paths rather than guaranteed cleanup.
+
 Return one of:
 
-- `CustomBuildStepResult.Succeeded()` to continue.
-- `CustomBuildStepResult.Failed(message)` to stop with an error.
-- `CustomBuildStepResult.Cancelled(message)` to stop as cancelled.
-- `CustomBuildStepResult.Waiting(message)` to retry the same step after the editor becomes available again.
+- `ManifestorBuildStepResult.Succeeded()` to continue.
+- `ManifestorBuildStepResult.Failed(message)` to stop with an error.
+- `ManifestorBuildStepResult.Cancelled(message)` to stop as cancelled.
+- `ManifestorBuildStepResult.Waiting(message)` to retry the same step after the editor becomes available again.
 
 ### Starting the pipeline from code
 
@@ -163,8 +181,8 @@ using Manifestor;
 using Manifestor.Build;
 using UnityEditor;
 
-ManifestorResult applyResult = CustomBuildPipeline.Apply(profile);
-ManifestorResult buildResult = CustomBuildPipeline.Build(
+ManifestorResult applyResult = ManifestorBuildPipeline.Apply(profile);
+ManifestorResult buildResult = ManifestorBuildPipeline.Build(
     profile,
     outputFolder,
     BuildOptions.CleanBuildCache);
@@ -175,4 +193,4 @@ if (!buildResult.success)
 }
 ```
 
-Starting the pipeline queues the work; a successful `ManifestorResult` means the operation started, not that every step has finished. Subscribe to `CustomBuildPipeline.completed` to observe its final status.
+Starting the pipeline queues the work; a successful `ManifestorResult` means the operation started, not that every step has finished. Subscribe to `ManifestorBuildPipeline.completed` to observe its final status.

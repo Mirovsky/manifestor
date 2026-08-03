@@ -8,7 +8,7 @@ namespace Manifestor.Build
     [Serializable]
     internal sealed class ManifestorBuildPipelineState
     {
-        public const int CurrentVersion = 1;
+        public const int CurrentVersion = 2;
 
         public int version = CurrentVersion;
         public bool isActive;
@@ -22,8 +22,64 @@ namespace Manifestor.Build
         public int nextStepIndex;
         public string currentStepTypeName;
         public string stepState;
+        public SerializableBuildUserData userData = new();
         public bool cancellationRequested;
         public long resumeAfterUtcTicks;
+    }
+
+    [Serializable]
+    internal sealed class SerializableBuildUserData
+    {
+        public List<SerializableBuildUserDataEntry> entries = new();
+
+        public static SerializableBuildUserData From(IReadOnlyDictionary<string, string> userData)
+        {
+            var serializedData = new SerializableBuildUserData();
+            if (userData == null)
+            {
+                return serializedData;
+            }
+
+            foreach (var pair in userData)
+            {
+                serializedData.entries.Add(new SerializableBuildUserDataEntry
+                {
+                    key = pair.Key,
+                    value = pair.Value ?? string.Empty
+                });
+            }
+
+            serializedData.entries.Sort((left, right) => StringComparer.Ordinal.Compare(left.key, right.key));
+            return serializedData;
+        }
+
+        public IReadOnlyDictionary<string, string> ToDictionary()
+        {
+            var userData = new Dictionary<string, string>(StringComparer.Ordinal);
+            if (entries == null)
+            {
+                return userData;
+            }
+
+            foreach (var entry in entries)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.key))
+                {
+                    continue;
+                }
+
+                userData[entry.key] = entry.value ?? string.Empty;
+            }
+
+            return userData;
+        }
+    }
+
+    [Serializable]
+    internal sealed class SerializableBuildUserDataEntry
+    {
+        public string key;
+        public string value;
     }
 
     [Serializable]

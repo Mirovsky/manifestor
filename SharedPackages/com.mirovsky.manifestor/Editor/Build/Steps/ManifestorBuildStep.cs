@@ -51,6 +51,8 @@ namespace Manifestor.Build
     public sealed class ManifestorBuildContext
     {
         private readonly Action<string, BuildPlayerOptions> _saveCheckpoint;
+        private readonly Action<IReadOnlyDictionary<string, string>> _saveUserData;
+        private readonly Dictionary<string, string> _userData;
 
         public ManifestProfileSO profile { get; }
         public ManifestorBuildOperation operation { get; }
@@ -65,6 +67,27 @@ namespace Manifestor.Build
             bool cancellationRequested,
             string persistedState,
             Action<string, BuildPlayerOptions> saveCheckpoint)
+            : this(
+                profile,
+                operation,
+                buildPlayerOptions,
+                cancellationRequested,
+                persistedState,
+                saveCheckpoint,
+                null,
+                null)
+        {
+        }
+
+        internal ManifestorBuildContext(
+            ManifestProfileSO profile,
+            ManifestorBuildOperation operation,
+            BuildPlayerOptions buildPlayerOptions,
+            bool cancellationRequested,
+            string persistedState,
+            Action<string, BuildPlayerOptions> saveCheckpoint,
+            IReadOnlyDictionary<string, string> userData,
+            Action<IReadOnlyDictionary<string, string>> saveUserData)
         {
             this.profile = profile;
             this.operation = operation;
@@ -72,12 +95,49 @@ namespace Manifestor.Build
             this.cancellationRequested = cancellationRequested;
             this.persistedState = persistedState ?? string.Empty;
             _saveCheckpoint = saveCheckpoint;
+            _saveUserData = saveUserData;
+            _userData = userData == null
+                ? new Dictionary<string, string>(StringComparer.Ordinal)
+                : new Dictionary<string, string>(userData, StringComparer.Ordinal);
         }
 
         public void SaveCheckpoint(string state)
         {
             persistedState = state ?? string.Empty;
             _saveCheckpoint?.Invoke(persistedState, buildPlayerOptions);
+        }
+
+        public void SetUserData(string key, string value)
+        {
+            ValidateUserDataKey(key);
+            _userData[key] = value ?? string.Empty;
+            _saveUserData?.Invoke(_userData);
+        }
+
+        public bool TryGetUserData(string key, out string value)
+        {
+            ValidateUserDataKey(key);
+            return _userData.TryGetValue(key, out value);
+        }
+
+        public bool RemoveUserData(string key)
+        {
+            ValidateUserDataKey(key);
+            if (!_userData.Remove(key))
+            {
+                return false;
+            }
+
+            _saveUserData?.Invoke(_userData);
+            return true;
+        }
+
+        private static void ValidateUserDataKey(string key)
+        {
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                throw new ArgumentException("User-data key cannot be empty.", nameof(key));
+            }
         }
     }
 

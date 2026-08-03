@@ -73,6 +73,12 @@ namespace Manifestor.Build
                         state.stepState = stepState;
                         state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
                         ManifestorBuildPipelineStateStore.Save(state);
+                    },
+                    state.userData?.ToDictionary(),
+                    userData =>
+                    {
+                        state.userData = SerializableBuildUserData.From(userData);
+                        ManifestorBuildPipelineStateStore.Save(state);
                     });
                 var handler = (IManifestorBuildStepInterruptionHandler)Activator.CreateInstance(stepType);
                 var result = handler.HandleInterruption(context);
@@ -190,6 +196,12 @@ namespace Manifestor.Build
                     state.stepState = stepState;
                     state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
                     ManifestorBuildPipelineStateStore.Save(state);
+                },
+                state.userData?.ToDictionary(),
+                userData =>
+                {
+                    state.userData = SerializableBuildUserData.From(userData);
+                    ManifestorBuildPipelineStateStore.Save(state);
                 });
 
             ManifestorBuildStepResult result;
@@ -257,6 +269,7 @@ namespace Manifestor.Build
             state.message = message;
             state.currentStepTypeName = string.Empty;
             state.stepState = string.Empty;
+            state.userData = new SerializableBuildUserData();
             ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildScheduler.Stop();
 
