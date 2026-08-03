@@ -68,12 +68,20 @@ namespace Manifestor.SerializedData
     public struct ManifestorData
     {
         [JsonProperty("name")] private string _name;
+        [JsonProperty("createdByProfile")] private bool _createdByProfile;
 
         public string name => _name;
+        public bool createdByProfile => _createdByProfile;
 
         public ManifestorData(string name)
+            : this(name, createdByProfile: false)
+        {
+        }
+
+        public ManifestorData(string name, bool createdByProfile)
         {
             _name = name;
+            _createdByProfile = createdByProfile;
         }
     }
 }

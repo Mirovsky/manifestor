@@ -20,7 +20,9 @@
 
         public static ProjectManifest ConvertToManifest(ManifestProfileSO profile)
         {
-            var manifestorData = new ManifestorData(StringUtils.Normalize(profile.profileName));
+            var manifestorData = new ManifestorData(
+                StringUtils.Normalize(profile.profileName),
+                createdByProfile: true);
 
             var scopedRegistries = profile.packagesLists
                 .SelectMany(l => l.scopedRegistries)

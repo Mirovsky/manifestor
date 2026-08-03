@@ -1,6 +1,5 @@
 namespace Manifestor
 {
-    using Build;
     using UI;
     using UnityEditor;
     using UnityEditor.PackageManager;
@@ -20,11 +19,6 @@ namespace Manifestor
 
         private static void EventsOnRegisteredPackages(PackageRegistrationEventArgs args)
         {
-            if (ManifestorBuildPipeline.isActive)
-            {
-                return;
-            }
-
             if (args.added.Count == 0 &&
                 args.removed.Count == 0 &&
                 args.changedFrom.Count == 0 &&
@@ -63,13 +57,14 @@ namespace Manifestor
             }
 
             StopQueuedDiffCheck();
-            if (ManifestorBuildPipeline.isActive)
-            {
-                return;
-            }
-
             try
             {
+                var manifest = ManifestorIO.LoadExistingManifest();
+                if (manifest != null && manifest.manifestorData.createdByProfile)
+                {
+                    return;
+                }
+
                 if (ManifestPackageDiffUtility.CreateManifestDiff().hasChanges)
                 {
                     ManifestorMigrateTool.ShowWindow();
