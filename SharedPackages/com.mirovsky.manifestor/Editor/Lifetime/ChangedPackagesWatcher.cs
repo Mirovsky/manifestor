@@ -52,7 +52,6 @@ namespace Manifestor
 
             if (EditorApplication.isCompiling ||
                 EditorApplication.isUpdating ||
-                ManifestorApplicator.isActive ||
                 CustomBuildPipeline.isActive)
             {
                 _checkAfter = EditorApplication.timeSinceStartup + DebounceSeconds;

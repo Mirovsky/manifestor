@@ -12,24 +12,36 @@ namespace Manifestor
 
     public static class ManifestorApplicator
     {
-        private const string StateKey = "Mirov.Manifestor.ManifestorApplicator.State";
-
         private static ListRequest _resolveRequest;
 
-        public static bool isActive => LoadState().isActive;
-
-        public static CustomBuildStepResult Execute(ManifestProfileSO profile)
+        public static CustomBuildStepResult Tick(CustomBuildContext context)
         {
-            var state = LoadState();
+            if (context?.profile == null)
+            {
+                return CustomBuildStepResult.Failed("Manifest profile is required.");
+            }
+
+            if (!TryLoadState(context.persistedState, out var state, out var stateError))
+            {
+                return CustomBuildStepResult.Failed(stateError);
+            }
+
+            if (context.cancellationRequested)
+            {
+                return state.isActive
+                    ? RollBack(context, state, "Manifest apply was cancelled.", cancelled: true)
+                    : CustomBuildStepResult.Cancelled("Manifest apply was cancelled before it started.");
+            }
+
             if (!state.isActive)
             {
-                var beginResult = Begin(profile, out state);
+                var beginResult = Begin(context, out state);
                 if (beginResult.outcome != CustomBuildStepOutcome.Waiting)
                 {
                     return beginResult;
                 }
             }
-            else if (profile == null || AssetDatabase.GetAssetPath(profile) != state.profilePath)
+            else if (AssetDatabase.GetAssetPath(context.profile) != state.profilePath)
             {
                 return CustomBuildStepResult.Failed("A different manifest profile apply transaction is already active.");
             }
@@ -49,25 +61,43 @@ namespace Manifestor
                 if (_resolveRequest.Status != StatusCode.Success)
                 {
                     var error = _resolveRequest.Error?.message ?? "Unknown package resolution error.";
-                    return RollBack(state, $"Unity Package Manager failed to resolve the manifest: {error}");
+                    return RollBack(context, state, $"Unity Package Manager failed to resolve the manifest: {error}");
                 }
 
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
 
                 ManifestorSettings.instance.SetLastAppliedManifest(state.profilePath, state.profileFingerprint);
-                ClearState();
+                ClearState(context);
 
-                return CustomBuildStepResult.Succeeded($"Applied manifest profile '{profile.profileName}'.");
+                return CustomBuildStepResult.Succeeded($"Applied manifest profile '{context.profile.profileName}'.");
             }
             catch (Exception exception)
             {
-                return RollBack(state, $"Failed to apply manifest profile: {exception.Message}");
+                return RollBack(context, state, $"Failed to apply manifest profile: {exception.Message}");
             }
         }
 
-        private static CustomBuildStepResult Begin(ManifestProfileSO profile, out ApplyState state)
+        public static CustomBuildStepResult HandleInterruption(CustomBuildContext context)
+        {
+            if (context == null)
+            {
+                return CustomBuildStepResult.Failed("Manifest apply context is required.");
+            }
+
+            if (!TryLoadState(context.persistedState, out var state, out var stateError))
+            {
+                return CustomBuildStepResult.Failed(stateError);
+            }
+
+            return state.isActive
+                ? RollBack(context, state, "Interrupted manifest apply was rolled back.", cancelled: true)
+                : CustomBuildStepResult.Cancelled("Manifest apply was interrupted before project state changed.");
+        }
+
+        private static CustomBuildStepResult Begin(CustomBuildContext context, out ApplyState state)
         {
             state = new ApplyState();
+            var profile = context.profile;
 
             var validation = ManifestorProfileValidator.Validate(profile);
             if (!validation.success)
@@ -97,7 +127,7 @@ namespace Manifestor
                     hadPreviousFingerprint = ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out state.previousFingerprint)
                 };
 
-                SaveState(state);
+                context.SaveCheckpoint(JsonUtility.ToJson(state));
 
                 BuildProfile.SetActiveBuildProfile(profile.buildProfile);
                 ManifestorIO.SaveManifest(ManifestorIO.ConvertToManifest(profile));
@@ -109,7 +139,7 @@ namespace Manifestor
             catch (Exception exception)
             {
                 return state.isActive
-                    ? RollBack(state, $"Failed to begin manifest apply: {exception.Message}")
+                    ? RollBack(context, state, $"Failed to begin manifest apply: {exception.Message}")
                     : CustomBuildStepResult.Failed($"Failed to begin manifest apply: {exception.Message}");
             }
         }
@@ -124,7 +154,11 @@ namespace Manifestor
             PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", defines));
         }
 
-        private static CustomBuildStepResult RollBack(ApplyState state, string failureMessage)
+        private static CustomBuildStepResult RollBack(
+            CustomBuildContext context,
+            ApplyState state,
+            string failureMessage,
+            bool cancelled = false)
         {
             var rollbackErrors = new System.Collections.Generic.List<string>();
             try
@@ -179,7 +213,7 @@ namespace Manifestor
                 rollbackErrors.Add($"editor preferences: {exception.Message}");
             }
 
-            ClearState();
+            ClearState(context);
             try
             {
                 Client.Resolve();
@@ -192,37 +226,44 @@ namespace Manifestor
             var rollbackSuffix = rollbackErrors.Count == 0
                 ? string.Empty
                 : " Rollback also failed for " + string.Join(", ", rollbackErrors) + ".";
-            return CustomBuildStepResult.Failed(failureMessage + rollbackSuffix);
+            return cancelled
+                ? CustomBuildStepResult.Cancelled(failureMessage + rollbackSuffix)
+                : CustomBuildStepResult.Failed(failureMessage + rollbackSuffix);
         }
 
-        private static ApplyState LoadState()
+        private static bool TryLoadState(string json, out ApplyState state, out string error)
         {
-            var json = SessionState.GetString(StateKey, string.Empty);
             if (string.IsNullOrEmpty(json))
             {
-                return new ApplyState();
+                state = new ApplyState();
+                error = string.Empty;
+                return true;
             }
 
             try
             {
-                return JsonUtility.FromJson<ApplyState>(json) ?? new ApplyState();
+                state = JsonUtility.FromJson<ApplyState>(json);
+                if (state == null)
+                {
+                    error = "Manifest apply checkpoint was empty.";
+                    return false;
+                }
+
+                error = string.Empty;
+                return true;
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                SessionState.EraseString(StateKey);
-                return new ApplyState();
+                state = new ApplyState();
+                error = $"Failed to restore manifest apply checkpoint: {exception.Message}";
+                return false;
             }
         }
 
-        private static void SaveState(ApplyState state)
-        {
-            SessionState.SetString(StateKey, JsonUtility.ToJson(state));
-        }
-
-        private static void ClearState()
+        private static void ClearState(CustomBuildContext context)
         {
             _resolveRequest = null;
-            SessionState.EraseString(StateKey);
+            context.SaveCheckpoint(string.Empty);
         }
 
         [Serializable]

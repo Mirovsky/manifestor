@@ -40,18 +40,44 @@ namespace Manifestor.Build
 
     public interface ICustomBuildStep
     {
-        CustomBuildStepResult Execute(CustomBuildContext context);
+        CustomBuildStepResult Tick(CustomBuildContext context);
+    }
+
+    public interface ICustomBuildStepInterruptionHandler
+    {
+        CustomBuildStepResult HandleInterruption(CustomBuildContext context);
     }
 
     public sealed class CustomBuildContext
     {
+        private readonly Action<string, BuildPlayerOptions> _saveCheckpoint;
+
         public ManifestProfileSO profile { get; }
+        public CustomBuildOperation operation { get; }
+        public bool cancellationRequested { get; }
+        public string persistedState { get; private set; }
         public BuildPlayerOptions buildPlayerOptions { get; set; }
 
-        public CustomBuildContext(ManifestProfileSO profile, BuildPlayerOptions buildPlayerOptions)
+        internal CustomBuildContext(
+            ManifestProfileSO profile,
+            CustomBuildOperation operation,
+            BuildPlayerOptions buildPlayerOptions,
+            bool cancellationRequested,
+            string persistedState,
+            Action<string, BuildPlayerOptions> saveCheckpoint)
         {
             this.profile = profile;
+            this.operation = operation;
             this.buildPlayerOptions = buildPlayerOptions;
+            this.cancellationRequested = cancellationRequested;
+            this.persistedState = persistedState ?? string.Empty;
+            _saveCheckpoint = saveCheckpoint;
+        }
+
+        public void SaveCheckpoint(string state)
+        {
+            persistedState = state ?? string.Empty;
+            _saveCheckpoint?.Invoke(persistedState, buildPlayerOptions);
         }
     }
 
@@ -59,13 +85,18 @@ namespace Manifestor.Build
     {
         public readonly CustomBuildStepOutcome outcome;
         public readonly string message;
+        public readonly double retryAfterSeconds;
 
         public bool success => outcome == CustomBuildStepOutcome.Succeeded;
 
-        private CustomBuildStepResult(CustomBuildStepOutcome outcome, string message)
+        private CustomBuildStepResult(
+            CustomBuildStepOutcome outcome,
+            string message,
+            double retryAfterSeconds = 0d)
         {
             this.outcome = outcome;
             this.message = message ?? string.Empty;
+            this.retryAfterSeconds = retryAfterSeconds;
         }
 
         public static CustomBuildStepResult Succeeded(string message = null)
@@ -78,9 +109,14 @@ namespace Manifestor.Build
             return new CustomBuildStepResult(CustomBuildStepOutcome.Failed, message);
         }
 
-        public static CustomBuildStepResult Waiting(string message = null)
+        public static CustomBuildStepResult Waiting(string message = null, double retryAfterSeconds = 1d)
         {
-            return new CustomBuildStepResult(CustomBuildStepOutcome.Waiting, message);
+            if (retryAfterSeconds < 0d)
+            {
+                throw new ArgumentOutOfRangeException(nameof(retryAfterSeconds));
+            }
+
+            return new CustomBuildStepResult(CustomBuildStepOutcome.Waiting, message, retryAfterSeconds);
         }
 
         public static CustomBuildStepResult Cancelled(string message = null)
@@ -91,16 +127,24 @@ namespace Manifestor.Build
 
     internal static class CustomBuildStepOrderResolver
     {
-        public static bool TryResolve(
-            Func<Type, bool> includeStep,
+        public static bool TryResolve(out List<Type> orderedSteps, out string error)
+        {
+            return TryResolve(
+                TypeCache.GetTypesWithAttribute<CustomBuildStepAttribute>(),
+                out orderedSteps,
+                out error);
+        }
+
+        internal static bool TryResolve(
+            IEnumerable<Type> discoveredTypes,
             out List<Type> orderedSteps,
             out string error)
         {
             orderedSteps = new List<Type>();
             error = string.Empty;
 
-            var stepTypes = TypeCache.GetTypesWithAttribute<CustomBuildStepAttribute>()
-                .Where(type => includeStep == null || includeStep(type))
+            var stepTypes = discoveredTypes
+                .Distinct()
                 .OrderBy(type => type.AssemblyQualifiedName, StringComparer.Ordinal)
                 .ToList();
             if (stepTypes.Count == 0)

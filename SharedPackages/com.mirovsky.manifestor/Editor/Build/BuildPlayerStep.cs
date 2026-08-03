@@ -8,11 +8,16 @@ namespace Manifestor.Build
     [CustomBuildStep(typeof(ApplyManifestBuildStep), CustomBuildStepOrder.After)]
     public sealed class BuildPlayerStep : ICustomBuildStep
     {
-        public CustomBuildStepResult Execute(CustomBuildContext context)
+        public CustomBuildStepResult Tick(CustomBuildContext context)
         {
             if (context?.profile?.buildProfile == null)
             {
                 return CustomBuildStepResult.Failed("A manifest profile with a Unity Build Profile is required.");
+            }
+
+            if (context.cancellationRequested)
+            {
+                return CustomBuildStepResult.Cancelled("Player build was cancelled before it started.");
             }
 
             var originalBuildTarget = EditorUserBuildSettings.activeBuildTarget;
