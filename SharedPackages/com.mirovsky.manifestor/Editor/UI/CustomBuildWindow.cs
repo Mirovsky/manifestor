@@ -32,6 +32,9 @@ namespace Manifestor.UI
              var refreshButton = rootVisualElement.Q<Button>("RefreshButton");
              refreshButton.clicked += HandleRefreshClicked;
 
+             var packageManagerButton = rootVisualElement.Q<Button>("PackageManagerButton");
+             packageManagerButton.clicked += HandlePackageManagerClicked;
+
             var playerSettingsButton = rootVisualElement.Q<Button>("PlayerSettingsButton");
             playerSettingsButton.clicked += HandlePlayerSettingsClicked;
 
@@ -242,6 +245,11 @@ namespace Manifestor.UI
         private void HandleRefreshClicked()
         {
             Refresh();
+        }
+
+        private void HandlePackageManagerClicked()
+        {
+            EditorApplication.ExecuteMenuItem("Window/Package Management/Package Manager");
         }
 
         private void HandlePlayerSettingsClicked()
