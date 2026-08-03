@@ -1,5 +1,6 @@
 namespace Manifestor.UI
 {
+    using System;
     using System.Collections.Generic;
     using System.Linq;
     using Build;
@@ -8,62 +9,142 @@ namespace Manifestor.UI
     [UxmlElement]
     public partial class BuildStepsList : VisualElement
     {
-        private readonly Label _errorLabel;
-        private readonly VisualElement _contentContainer;
+        public const string ussClassName = "manifestor-build-steps-list";
+        public const string errorUssClassName = ussClassName + "__error";
+        public const string rowUssClassName = ussClassName + "__row";
+        public const string titleUssClassName = ussClassName + "__title";
+        public const string sequenceUssClassName = ussClassName + "__sequence";
+        public const string entryUssClassName = ussClassName + "__entry";
+        public const string separatorUssClassName = ussClassName + "__separator";
+        public const string stepUssClassName = ussClassName + "__step";
+        public const string emptyUssClassName = ussClassName + "__empty";
+
+        private readonly HelpBox _errorBox;
+        private readonly VisualElement _applyRow;
+        private readonly VisualElement _applySequence;
+        private readonly VisualElement _buildRow;
+        private readonly VisualElement _buildSequence;
 
         public BuildStepsList()
         {
-            _contentContainer = new VisualElement
-            {
-                style =
-                {
-                    display = DisplayStyle.Flex,
-                    flexDirection = FlexDirection.Column
-                }
-            };
-            _errorLabel = new Label
-            {
-                style =
-                {
-                    display = DisplayStyle.None
-                }
-            };
+            AddToClassList(ussClassName);
 
-            _contentContainer.Add(_errorLabel);
+            _errorBox = new HelpBox(string.Empty, HelpBoxMessageType.Error);
+            _errorBox.AddToClassList(errorUssClassName);
+            _errorBox.style.display = DisplayStyle.None;
+            Add(_errorBox);
 
-            Add(_contentContainer);
+            _applyRow = CreateRow("Apply Steps:", out _applySequence);
+            Add(_applyRow);
+
+            _buildRow = CreateRow("Build Steps:", out _buildSequence);
+            Add(_buildRow);
         }
 
-        public void SetSteps(bool isValid, IReadOnlyList<System.Type> steps, string error)
+        public void SetSteps(bool isValid, IReadOnlyList<Type> steps, string error)
         {
-            _contentContainer.Clear();
-
             if (!isValid)
             {
-                _errorLabel.text = error;
-                _errorLabel.style.display = DisplayStyle.Flex;
+                ShowError(error);
                 return;
             }
 
-            var previousApply = true;
+            _errorBox.text = string.Empty;
+            _errorBox.style.display = DisplayStyle.None;
+            _applyRow.style.display = DisplayStyle.Flex;
+            _buildRow.style.display = DisplayStyle.Flex;
 
-            var texts = new List<string>();
+            PartitionSteps(steps, out var applySteps, out var buildSteps);
+            PopulateSequence(_applySequence, applySteps);
+            PopulateSequence(_buildSequence, buildSteps);
+        }
+
+        private static VisualElement CreateRow(string title, out VisualElement sequence)
+        {
+            var row = new VisualElement();
+            row.AddToClassList(rowUssClassName);
+
+            var titleLabel = new Label(title);
+            titleLabel.AddToClassList(titleUssClassName);
+            row.Add(titleLabel);
+
+            sequence = new VisualElement();
+            sequence.AddToClassList(sequenceUssClassName);
+            row.Add(sequence);
+
+            return row;
+        }
+
+        private static void PartitionSteps(
+            IReadOnlyList<Type> steps,
+            out List<Type> applySteps,
+            out List<Type> buildSteps)
+        {
+            applySteps = new List<Type>();
+            buildSteps = new List<Type>();
+
+            if (steps == null)
+            {
+                return;
+            }
+
+            foreach (var step in steps)
+            {
+                if (step == null)
+                {
+                    continue;
+                }
+
+                var runsDuringApply = step
+                    .GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
+                    .Cast<CustomBuildStepAttribute>()
+                    .Any(attribute => attribute.runDuringApply);
+                (runsDuringApply ? applySteps : buildSteps).Add(step);
+            }
+        }
+
+        private static void PopulateSequence(VisualElement sequence, IReadOnlyList<Type> steps)
+        {
+            sequence.Clear();
+            if (steps.Count == 0)
+            {
+                var emptyLabel = new Label("None");
+                emptyLabel.AddToClassList(emptyUssClassName);
+                sequence.Add(emptyLabel);
+                return;
+            }
+
             for (var index = 0; index < steps.Count; index++)
             {
                 var step = steps[index];
-                var isApply = step.GetCustomAttributes(typeof(CustomBuildStepAttribute), false)
-                    .Cast<CustomBuildStepAttribute>()
-                    .Any(a => a.runDuringApply);
+                var entry = new VisualElement();
+                entry.AddToClassList(entryUssClassName);
 
-                if (previousApply != isApply) {
-                    _contentContainer.Add(new Label("<color=#A6A6A6>Apply Steps:</color> " + string.Join(" > ", texts)));
-                    texts.Clear();
+                if (index > 0)
+                {
+                    var separator = new Label("\u203A");
+                    separator.AddToClassList(separatorUssClassName);
+                    entry.Add(separator);
                 }
 
-                texts.Add(StringUtils.ToDisplayName(steps[index].ToString()));
-                previousApply = isApply;
+                var stepLabel = new Label(StringUtils.ToDisplayName(step.Name))
+                {
+                    tooltip = step.FullName ?? step.Name
+                };
+                stepLabel.AddToClassList(stepUssClassName);
+                entry.Add(stepLabel);
+                sequence.Add(entry);
             }
-            _contentContainer.Add(new Label("<color=#A6A6A6>Build Steps:</color> " + string.Join(" > ", texts)));
+        }
+
+        private void ShowError(string error)
+        {
+            _errorBox.text = string.IsNullOrWhiteSpace(error)
+                ? "The custom build step order is invalid."
+                : error;
+            _errorBox.style.display = DisplayStyle.Flex;
+            _applyRow.style.display = DisplayStyle.None;
+            _buildRow.style.display = DisplayStyle.None;
         }
     }
 }
