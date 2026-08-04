@@ -10,18 +10,40 @@
 
     public static class PackagesListUtils
     {
-        public static PackageListTarget[] FindPackageLists()
+        internal static bool TryFindAppliedProfilePackageLists(out PackageListTarget[] packageLists)
         {
-            return AssetDatabase.FindAssets("t:ManifestorPackagesListSO")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .Select(path => new PackageListTarget(AssetDatabase.LoadAssetAtPath<ManifestorPackagesListSO>(path), path))
-                .Where(target => target.packageList != null)
+            if (!TryGetAppliedProfile(out var profile))
+            {
+                packageLists = Array.Empty<PackageListTarget>();
+                return false;
+            }
+
+            packageLists = profile.packagesLists
+                .Where(packageList => packageList != null)
+                .Select(packageList => new PackageListTarget(packageList, AssetDatabase.GetAssetPath(packageList)))
+                .Where(target => !string.IsNullOrEmpty(target.assetPath))
+                .GroupBy(target => target.assetPath, StringComparer.Ordinal)
+                .Select(group => group.First())
+                .OrderBy(target => target.assetPath, StringComparer.Ordinal)
                 .ToArray();
+            return true;
         }
 
-        public static void CreateNewPackageList()
+        internal static void CreateNewPackageListForAppliedProfile()
         {
+            if (!TryGetAppliedProfile(out var profile))
+            {
+                return;
+            }
+
+            var serializedProfile = new SerializedObject(profile);
+            var packageListsProperty = serializedProfile.FindProperty("_packageLists");
+            if (packageListsProperty == null || !packageListsProperty.isArray)
+            {
+                Debug.LogWarning($"Manifestor could not attach a package list to profile '{profile.name}'.");
+                return;
+            }
+
             var assetPath = EditorUtility.SaveFilePanelInProject(
                 "Create Packages List",
                 "PackagesList",
@@ -32,10 +54,20 @@
                 return;
             }
 
+            var undoGroup = Undo.GetCurrentGroup();
+            Undo.SetCurrentGroupName("Create and Attach Packages List");
+
             var packageList = ScriptableObject.CreateInstance<ManifestorPackagesListSO>();
             AssetDatabase.CreateAsset(packageList, assetPath);
             Undo.RegisterCreatedObjectUndo(packageList, "Create Packages List");
+            Undo.RecordObject(profile, "Attach Packages List to Manifest Profile");
+
+            packageListsProperty.arraySize++;
+            packageListsProperty.GetArrayElementAtIndex(packageListsProperty.arraySize - 1).objectReferenceValue = packageList;
+            serializedProfile.ApplyModifiedProperties();
+            EditorUtility.SetDirty(profile);
             AssetDatabase.SaveAssets();
+            Undo.CollapseUndoOperations(undoGroup);
         }
 
         public static void ApplyPackageListChanges(List<ManifestorMigrateTool.MigrationRow> rows)
@@ -46,7 +78,10 @@
                     .Where(target => target != null && target.selected && target.packageList != null)
                     .Select(target => new SelectedChange(row.change, target.packageList)))
                 .ToLookup(selectedChange => selectedChange.packageList);
-            var packageLists = FindPackageLists();
+            if (!TryFindAppliedProfilePackageLists(out var packageLists))
+            {
+                return;
+            }
             var scopedRegistries = ManifestorIO.LoadExistingManifest()?.scopedRegistries
                                    ?? Array.Empty<ScopedManifestRegistry>();
 
@@ -94,6 +129,25 @@
                     change.packageListValue, change.manifestValue),
                 _ => false
             };
+        }
+
+        private static bool TryGetAppliedProfile(out ManifestProfileSO profile)
+        {
+            profile = null;
+            if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var profilePath))
+            {
+                Debug.LogWarning("Manifestor migration requires a successfully applied manifest profile.");
+                return false;
+            }
+
+            profile = AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(profilePath);
+            if (profile != null)
+            {
+                return true;
+            }
+
+            Debug.LogWarning($"Manifestor migration could not load the applied profile at '{profilePath}'.");
+            return false;
         }
 
         private static bool UsesScopedRegistry(ManifestorPackagesListSO packageList, ScopedManifestRegistry scopedRegistry)

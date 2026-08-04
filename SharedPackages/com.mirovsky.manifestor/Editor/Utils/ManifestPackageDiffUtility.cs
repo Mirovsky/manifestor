@@ -18,8 +18,15 @@ namespace Manifestor
                     Array.Empty<ManifestPackageDiffEntry>());
             }
 
-            var packageLists = PackagesListUtils.FindPackageLists()
-                .Select(p => p.packageList);
+            if (!PackagesListUtils.TryFindAppliedProfilePackageLists(out var packageListTargets))
+            {
+                return new ManifestPackageDiffResult(
+                    Array.Empty<ManifestPackageDiffEntry>(),
+                    Array.Empty<ManifestPackageDiffEntry>(),
+                    Array.Empty<ManifestPackageDiffEntry>());
+            }
+
+            var packageLists = packageListTargets.Select(p => p.packageList);
 
             return Compare(manifest?.dependencies, packageLists);
         }

@@ -53,7 +53,7 @@ namespace Manifestor.UI
 
         private void HandleNewPackageListButtonClicked()
         {
-            PackagesListUtils.CreateNewPackageList();
+            PackagesListUtils.CreateNewPackageListForAppliedProfile();
 
             Refresh();
         }
@@ -108,7 +108,7 @@ namespace Manifestor.UI
                     }))
                 .ToDictionary(selection => selection.key, selection => selection.selected);
             var diff = ManifestPackageDiffUtility.CreateManifestDiff();
-            var packageLists = PackagesListUtils.FindPackageLists();
+            PackagesListUtils.TryFindAppliedProfilePackageLists(out var packageLists);
             var rows = BuildRows(diff.allChanges, packageLists);
 
             foreach (var row in rows)

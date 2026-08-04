@@ -77,9 +77,9 @@ Build progress and failures are reported in the Unity Console. Only one Manifest
 
 ### Manifest migration
 
-When installed packages change outside Manifestor, the package watches for differences between `Packages/manifest.json` and all `PackagesListSO` assets. If actionable differences are found, the **Manifest Migration** window opens automatically. You can also open it from **Tools > Manifestor > Manifest Migration**.
+When installed packages change outside Manifestor, the package watches for differences between `Packages/manifest.json` and the package-list assets referenced by the currently applied manifest profile. If actionable differences are found, the **Manifest Migration** window opens automatically. You can also open it from **Tools > Manifestor > Manifest Migration**.
 
-The window shows packages that were added, removed, or changed in the manifest. Select the package-list assets that should receive each change, create another package list if necessary, and choose **Apply**. Migration updates package-list assets; it does not apply a manifest profile.
+The window shows packages that were added, removed, or changed in the manifest. Select the package-list assets that should receive each change, create and attach another package list to the applied profile if necessary, and choose **Apply**. Migration updates package-list assets; it does not apply a manifest profile.
 
 ## Extending Manifestor
 
