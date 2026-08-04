@@ -93,6 +93,22 @@
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        internal static void RefreshDependenciesFingerprint(ProjectManifest manifest)
+        {
+            if (manifest == null)
+            {
+                throw new ArgumentNullException(nameof(manifest));
+            }
+
+            if (manifest.dependencies == null)
+            {
+                throw new InvalidOperationException("The project manifest has no dependencies collection.");
+            }
+
+            manifest.SetDependenciesFingerprint(CalculateDependenciesFingerprint(manifest.dependencies));
+            SaveManifest(manifest);
+        }
+
         internal static void SaveManifestTextAtomic(string json)
         {
             var temporaryPath = ManifestPath + ".manifestor.tmp";

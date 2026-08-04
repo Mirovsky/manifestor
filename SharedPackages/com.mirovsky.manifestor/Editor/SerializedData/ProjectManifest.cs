@@ -41,6 +41,14 @@ namespace Manifestor.SerializedData
             _testables = testables ?? Array.Empty<string>();
             _pinnedPackages = pinnedPackages ?? Array.Empty<string>();
         }
+
+        internal void SetDependenciesFingerprint(string dependenciesFingerprint)
+        {
+            _manifestorData = new ManifestorData(
+                _manifestorData.name,
+                _manifestorData.createdByProfile,
+                dependenciesFingerprint);
+        }
     }
 
     [Serializable]

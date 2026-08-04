@@ -82,8 +82,8 @@
             {
                 return;
             }
-            var scopedRegistries = ManifestorIO.LoadExistingManifest()?.scopedRegistries
-                                   ?? Array.Empty<ScopedManifestRegistry>();
+            var manifest = ManifestorIO.LoadExistingManifest();
+            var scopedRegistries = manifest?.scopedRegistries ?? Array.Empty<ScopedManifestRegistry>();
 
             var undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Apply Package Manifest Migration");
@@ -115,6 +115,8 @@
             {
                 AssetDatabase.SaveAssets();
             }
+
+            ManifestorIO.RefreshDependenciesFingerprint(manifest);
         }
 
         private static bool ApplyChange(ManifestorPackagesListSO packageList, ManifestPackageDiffEntry change)
