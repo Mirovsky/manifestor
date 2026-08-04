@@ -1,8 +1,10 @@
 ﻿namespace Manifestor
 {
     using System;
+    using System.Collections.Generic;
     using System.IO;
     using System.Linq;
+    using System.Security.Cryptography;
     using System.Text;
     using Newtonsoft.Json;
     using SerializedData;
@@ -20,10 +22,6 @@
 
         public static ProjectManifest ConvertToManifest(ManifestProfileSO profile)
         {
-            var manifestorData = new ManifestorData(
-                StringUtils.Normalize(profile.profileName),
-                createdByProfile: true);
-
             var scopedRegistries = profile.packagesLists
                 .SelectMany(l => l.scopedRegistries)
                 .Where(registry => registry != null)
@@ -42,6 +40,11 @@
                 .SelectMany(list => list.packages)
                 .Where(package => package != null)
                 .ToDictionary(package => StringUtils.Normalize(package.packageName), package => StringUtils.Normalize(package.location));
+
+            var manifestorData = new ManifestorData(
+                StringUtils.Normalize(profile.profileName),
+                createdByProfile: true,
+                dependenciesFingerprint: CalculateDependenciesFingerprint(dependencies));
 
             var testables = profile.packagesLists
                 .SelectMany(list => list.testables)
@@ -72,6 +75,22 @@
         internal static string LoadManifestText()
         {
             return File.Exists(ManifestPath) ? File.ReadAllText(ManifestPath) : string.Empty;
+        }
+
+        internal static bool HasUnchangedGeneratedDependencies(ProjectManifest manifest)
+        {
+            if (manifest == null ||
+                !manifest.manifestorData.createdByProfile ||
+                string.IsNullOrEmpty(manifest.manifestorData.dependenciesFingerprint))
+            {
+                return false;
+            }
+
+            var currentFingerprint = CalculateDependenciesFingerprint(manifest.dependencies);
+            return string.Equals(
+                manifest.manifestorData.dependenciesFingerprint,
+                currentFingerprint,
+                StringComparison.OrdinalIgnoreCase);
         }
 
         internal static void SaveManifestTextAtomic(string json)
@@ -114,6 +133,35 @@
             }
 
             return JsonConvert.SerializeObject(manifest, Formatting.Indented) + Environment.NewLine;
+        }
+
+        private static string CalculateDependenciesFingerprint(IReadOnlyDictionary<string, string> dependencies)
+        {
+            var canonicalDependencies = new StringBuilder();
+            var normalizedDependencies = (dependencies ?? new Dictionary<string, string>())
+                .Select(dependency => new
+                {
+                    packageName = StringUtils.Normalize(dependency.Key),
+                    packageLocation = StringUtils.Normalize(dependency.Value)
+                })
+                .Where(dependency => !string.IsNullOrEmpty(dependency.packageName))
+                .OrderBy(dependency => dependency.packageName, StringComparer.Ordinal)
+                .ThenBy(dependency => dependency.packageLocation, StringComparer.Ordinal);
+
+            foreach (var dependency in normalizedDependencies)
+            {
+                canonicalDependencies
+                    .Append(dependency.packageName.Length)
+                    .Append(':')
+                    .Append(dependency.packageName)
+                    .Append(dependency.packageLocation.Length)
+                    .Append(':')
+                    .Append(dependency.packageLocation);
+            }
+
+            using var sha256 = SHA256.Create();
+            var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(canonicalDependencies.ToString()));
+            return BitConverter.ToString(hash).Replace("-", string.Empty).ToLowerInvariant();
         }
 
         private static string[] NormalizeValues(System.Collections.Generic.IEnumerable<string> values)

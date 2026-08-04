@@ -69,19 +69,27 @@ namespace Manifestor.SerializedData
     {
         [JsonProperty("name")] private string _name;
         [JsonProperty("createdByProfile")] private bool _createdByProfile;
+        [JsonProperty("dependenciesFingerprint")] private string _dependenciesFingerprint;
 
         public string name => _name;
         public bool createdByProfile => _createdByProfile;
+        public string dependenciesFingerprint => _dependenciesFingerprint ?? string.Empty;
 
         public ManifestorData(string name)
-            : this(name, createdByProfile: false)
+            : this(name, createdByProfile: false, dependenciesFingerprint: string.Empty)
         {
         }
 
         public ManifestorData(string name, bool createdByProfile)
+            : this(name, createdByProfile, dependenciesFingerprint: string.Empty)
+        {
+        }
+
+        public ManifestorData(string name, bool createdByProfile, string dependenciesFingerprint)
         {
             _name = name;
             _createdByProfile = createdByProfile;
+            _dependenciesFingerprint = dependenciesFingerprint ?? string.Empty;
         }
     }
 }

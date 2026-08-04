@@ -60,7 +60,7 @@ namespace Manifestor
             try
             {
                 var manifest = ManifestorIO.LoadExistingManifest();
-                if (manifest != null && manifest.manifestorData.createdByProfile)
+                if (ManifestorIO.HasUnchangedGeneratedDependencies(manifest))
                 {
                     return;
                 }
