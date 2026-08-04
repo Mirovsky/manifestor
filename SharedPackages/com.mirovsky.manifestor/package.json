@@ -5,6 +5,13 @@
   "unity": "6000.4",
   "description": "Unity Editor tooling for defining reusable package manifests, applying them per Build Profile, and building projects with profile-specific dependencies and settings.",
   "author": {
-    "name": "Jakub Mirovsk\u00fd"
+    "name": "Jakub Mirovský",
+    "email": "me@jakubmirovsky.cz",
+    "url": "https://jakubmirovsky.cz"
+  },
+  "type": "tool",
+  "dependencies": {
+    "com.unity.modules.uielements": "1.0.0",
+    "com.unity.settings-manager": "2.0.1"
   }
 }
