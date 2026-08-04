@@ -93,6 +93,32 @@
                 StringComparison.OrdinalIgnoreCase);
         }
 
+        internal static bool HasMatchingGeneratedManifest(ManifestProfileSO profile)
+        {
+            if (profile == null)
+            {
+                throw new ArgumentNullException(nameof(profile));
+            }
+
+            if (!ManifestExists())
+            {
+                return false;
+            }
+
+            ProjectManifest currentManifest;
+            try
+            {
+                currentManifest = LoadExistingManifest();
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+
+            var expectedManifest = ConvertToManifest(profile);
+            return ManifestsEqual(currentManifest, expectedManifest);
+        }
+
         internal static void RefreshDependenciesFingerprint(ProjectManifest manifest)
         {
             if (manifest == null)
@@ -149,6 +175,66 @@
             }
 
             return JsonConvert.SerializeObject(manifest, Formatting.Indented) + Environment.NewLine;
+        }
+
+        private static bool ManifestsEqual(ProjectManifest current, ProjectManifest expected)
+        {
+            return current != null &&
+                   expected != null &&
+                   current.manifestorData.createdByProfile == expected.manifestorData.createdByProfile &&
+                   string.Equals(current.manifestorData.name, expected.manifestorData.name, StringComparison.Ordinal) &&
+                   string.Equals(
+                       current.manifestorData.dependenciesFingerprint,
+                       expected.manifestorData.dependenciesFingerprint,
+                       StringComparison.OrdinalIgnoreCase) &&
+                   HasUnchangedGeneratedDependencies(current) &&
+                   current.enableLockFile == expected.enableLockFile &&
+                   string.Equals(current.resolutionStrategy, expected.resolutionStrategy, StringComparison.Ordinal) &&
+                   CanonicalDependencies(current.dependencies).SequenceEqual(CanonicalDependencies(expected.dependencies)) &&
+                   CanonicalRegistries(current.scopedRegistries).SequenceEqual(CanonicalRegistries(expected.scopedRegistries)) &&
+                   CanonicalValues(current.testables).SequenceEqual(CanonicalValues(expected.testables)) &&
+                   CanonicalValues(current.pinnedPackages).SequenceEqual(CanonicalValues(expected.pinnedPackages));
+        }
+
+        private static string[] CanonicalDependencies(IReadOnlyDictionary<string, string> dependencies)
+        {
+            if (dependencies == null)
+            {
+                return new[] { "<missing>" };
+            }
+
+            return dependencies
+                .Select(dependency => CreateLengthPrefixedKey(
+                    StringUtils.Normalize(dependency.Key),
+                    StringUtils.Normalize(dependency.Value)))
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] CanonicalRegistries(IReadOnlyList<ScopedManifestRegistry> registries)
+        {
+            return (registries ?? Array.Empty<ScopedManifestRegistry>())
+                .Select(registry => CreateRegistryKey(
+                    StringUtils.Normalize(registry.name),
+                    StringUtils.Normalize(registry.url),
+                    NormalizeValues(registry.scopes)))
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string[] CanonicalValues(IEnumerable<string> values)
+        {
+            return (values ?? Array.Empty<string>())
+                .Select(value => value == null ? "0:" : $"1:{value.Length}:{value}")
+                .OrderBy(value => value, StringComparer.Ordinal)
+                .ToArray();
+        }
+
+        private static string CreateLengthPrefixedKey(string first, string second)
+        {
+            first ??= string.Empty;
+            second ??= string.Empty;
+            return $"{first.Length}:{first}{second.Length}:{second}";
         }
 
         private static string CalculateDependenciesFingerprint(IReadOnlyDictionary<string, string> dependencies)

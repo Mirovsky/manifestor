@@ -111,11 +111,24 @@ namespace Manifestor
                 var buildTarget = BuildProfileUtility.GetBuildTarget(profile.buildProfile);
                 var namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(BuildPipeline.GetBuildTargetGroup(buildTarget));
                 var activeBuildProfile = BuildProfile.GetActiveBuildProfile();
+                var profileFingerprint = ManifestorProfileFingerprint.Calculate(profile);
+                if (IsAlreadyApplied(
+                        profile,
+                        profilePath,
+                        profileFingerprint,
+                        activeBuildProfile,
+                        namedBuildTarget))
+                {
+                    ClearState(context);
+                    return ManifestorBuildStepResult.Succeeded(
+                        $"Manifest profile '{profile.profileName}' is already applied.");
+                }
+
                 state = new ApplyState
                 {
                     isActive = true,
                     profilePath = profilePath,
-                    profileFingerprint = ManifestorProfileFingerprint.Calculate(profile),
+                    profileFingerprint = profileFingerprint,
                     previousManifestExisted = ManifestorIO.ManifestExists(),
                     previousManifest = ManifestorIO.LoadManifestText(),
                     previousBuildProfilePath = activeBuildProfile == null
@@ -146,13 +159,46 @@ namespace Manifestor
 
         private static void ApplyExactScriptingDefines(ManifestProfileSO profile, NamedBuildTarget namedBuildTarget)
         {
-            var defines = profile.packagesLists
+            PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", GetExactScriptingDefines(profile)));
+        }
+
+        private static string[] GetExactScriptingDefines(ManifestProfileSO profile)
+        {
+            return profile.packagesLists
                 .SelectMany(packageList => packageList.defines ?? Array.Empty<string>())
                 .Select(define => (define ?? string.Empty).Trim())
                 .Where(define => !string.IsNullOrEmpty(define))
-                .Distinct(StringComparer.Ordinal);
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
 
-            PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", defines));
+        private static bool IsAlreadyApplied(
+            ManifestProfileSO profile,
+            string profilePath,
+            string profileFingerprint,
+            BuildProfile activeBuildProfile,
+            NamedBuildTarget namedBuildTarget)
+        {
+            if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var appliedProfilePath) ||
+                !string.Equals(appliedProfilePath, profilePath, StringComparison.Ordinal) ||
+                !ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out var appliedFingerprint) ||
+                !string.Equals(appliedFingerprint, profileFingerprint, StringComparison.Ordinal) ||
+                activeBuildProfile != profile.buildProfile ||
+                !ManifestorIO.HasMatchingGeneratedManifest(profile))
+            {
+                return false;
+            }
+
+            var expectedDefines = GetExactScriptingDefines(profile)
+                .OrderBy(define => define, StringComparer.Ordinal);
+            var currentDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget)
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(define => define.Trim())
+                .Where(define => !string.IsNullOrEmpty(define))
+                .Distinct(StringComparer.Ordinal)
+                .OrderBy(define => define, StringComparer.Ordinal);
+
+            return expectedDefines.SequenceEqual(currentDefines, StringComparer.Ordinal);
         }
 
         private static ManifestorBuildStepResult RollBack(
