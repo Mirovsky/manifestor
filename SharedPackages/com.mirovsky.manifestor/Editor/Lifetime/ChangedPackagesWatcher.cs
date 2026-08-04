@@ -59,12 +59,6 @@ namespace Manifestor
             StopQueuedDiffCheck();
             try
             {
-                var manifest = ManifestorIO.LoadExistingManifest();
-                if (ManifestorIO.HasUnchangedGeneratedDependencies(manifest))
-                {
-                    return;
-                }
-
                 if (ManifestPackageDiffUtility.CreateManifestDiff().hasChanges)
                 {
                     ManifestorMigrateTool.ShowWindow();
