@@ -4,6 +4,7 @@ namespace Manifestor.Build
     using System.Linq;
     using UnityEditor;
     using UnityEditor.Build.Reporting;
+    using UnityEditor.SceneManagement;
 
     [ManifestorBuildStep(typeof(ApplyManifestBuildStep), ManifestorBuildStepOrder.After)]
     public sealed class BuildPlayerStep : IManifestorBuildStep
@@ -21,6 +22,7 @@ namespace Manifestor.Build
             }
 
             var originalBuildTarget = EditorUserBuildSettings.activeBuildTarget;
+            SceneSetup[] originalSceneSetup = null;
             ManifestorBuildStepResult result;
             try
             {
@@ -38,6 +40,7 @@ namespace Manifestor.Build
 
                 buildPlayerOptions.options |= BuildOptions.DetailedBuildReport;
                 context.buildPlayerOptions = buildPlayerOptions;
+                originalSceneSetup = EditorSceneManager.GetSceneManagerSetup();
                 var report = BuildPipeline.BuildPlayer(buildPlayerOptions);
 
                 result = report.summary.result switch
@@ -57,9 +60,11 @@ namespace Manifestor.Build
                 result = ManifestorBuildStepResult.Failed($"Failed to build player: {exception.Message}");
             }
 
-            return result.success
+            result = result.success
                 ? result
                 : RestoreBuildTargetAfterFailure(result, originalBuildTarget);
+
+            return RestoreSceneSetup(result, originalSceneSetup);
         }
 
         private static BuildPlayerOptions ApplyDefaults(ManifestorBuildContext context)
@@ -123,5 +128,16 @@ namespace Manifestor.Build
             }
         }
 
+        private static ManifestorBuildStepResult RestoreSceneSetup(
+            ManifestorBuildStepResult buildResult,
+            SceneSetup[] originalSceneSetup)
+        {
+            if (originalSceneSetup != null)
+            {
+                EditorSceneManager.RestoreSceneManagerSetup(originalSceneSetup);
+            }
+
+            return buildResult;
+        }
     }
 }
