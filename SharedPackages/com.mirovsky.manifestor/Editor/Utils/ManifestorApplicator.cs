@@ -33,6 +33,11 @@ namespace Manifestor
                     : ManifestorBuildStepResult.Cancelled("Manifest apply was cancelled before it started.");
             }
 
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                return ManifestorBuildStepResult.Waiting("Waiting for the Unity Editor to finish updating.");
+            }
+
             if (!state.isActive)
             {
                 var beginResult = Begin(context, out state);
@@ -65,6 +70,15 @@ namespace Manifestor
                 }
 
                 AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
+
+                var requestedBuildTarget = BuildProfileUtility.GetBuildTarget(context.profile.buildProfile);
+                if (!IsRequestedBuildStateActive(context.profile.buildProfile, requestedBuildTarget))
+                {
+                    return RollBack(
+                        context,
+                        state,
+                        CreateBuildStateMismatchMessage(context.profile.buildProfile, requestedBuildTarget));
+                }
 
                 ManifestorSettings.instance.SetLastAppliedManifest(state.profilePath, state.profileFingerprint);
                 ClearState(context);
@@ -110,13 +124,14 @@ namespace Manifestor
                 var profilePath = AssetDatabase.GetAssetPath(profile);
                 var buildTarget = BuildProfileUtility.GetBuildTarget(profile.buildProfile);
                 var namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(BuildPipeline.GetBuildTargetGroup(buildTarget));
-                var activeBuildProfile = BuildProfile.GetActiveBuildProfile();
+                var activeBuildProfile = ManifestorEditorBuildState.activeBuildProfile;
                 var profileFingerprint = ManifestorProfileFingerprint.Calculate(profile);
                 if (IsAlreadyApplied(
                         profile,
                         profilePath,
                         profileFingerprint,
                         activeBuildProfile,
+                        buildTarget,
                         namedBuildTarget))
                 {
                     ClearState(context);
@@ -134,6 +149,8 @@ namespace Manifestor
                     previousBuildProfilePath = activeBuildProfile == null
                         ? string.Empty
                         : AssetDatabase.GetAssetPath(activeBuildProfile),
+                    hasPreviousBuildTarget = true,
+                    previousBuildTarget = (int)ManifestorEditorBuildState.activeBuildTarget,
                     definesBuildTarget = (int)buildTarget,
                     previousDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget),
                     hadPreviousAppliedProfile = ManifestorSettings.instance.TryGetLastAppliedProfilePath(out state.previousAppliedProfilePath),
@@ -142,7 +159,11 @@ namespace Manifestor
 
                 context.SaveCheckpoint(JsonUtility.ToJson(state));
 
-                BuildProfile.SetActiveBuildProfile(profile.buildProfile);
+                if (!TryActivateBuildState(profile.buildProfile, buildTarget, out var buildStateError))
+                {
+                    return RollBack(context, state, buildStateError);
+                }
+
                 ManifestorIO.SaveManifest(ManifestorIO.ConvertToManifest(profile));
                 ApplyExactScriptingDefines(profile, namedBuildTarget);
                 Client.Resolve();
@@ -177,6 +198,7 @@ namespace Manifestor
             string profilePath,
             string profileFingerprint,
             BuildProfile activeBuildProfile,
+            BuildTarget requestedBuildTarget,
             NamedBuildTarget namedBuildTarget)
         {
             if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var appliedProfilePath) ||
@@ -184,6 +206,7 @@ namespace Manifestor
                 !ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out var appliedFingerprint) ||
                 !string.Equals(appliedFingerprint, profileFingerprint, StringComparison.Ordinal) ||
                 activeBuildProfile != profile.buildProfile ||
+                ManifestorEditorBuildState.activeBuildTarget != requestedBuildTarget ||
                 !ManifestorIO.HasMatchingGeneratedManifest(profile))
             {
                 return false;
@@ -199,6 +222,54 @@ namespace Manifestor
                 .OrderBy(define => define, StringComparer.Ordinal);
 
             return expectedDefines.SequenceEqual(currentDefines, StringComparer.Ordinal);
+        }
+
+        internal static bool TryActivateBuildState(
+            BuildProfile buildProfile,
+            BuildTarget requestedBuildTarget,
+            out string error)
+        {
+            ManifestorEditorBuildState.SetActiveBuildProfile(buildProfile);
+
+            var requestedBuildTargetGroup = BuildPipeline.GetBuildTargetGroup(requestedBuildTarget);
+            if (ManifestorEditorBuildState.activeBuildTarget != requestedBuildTarget &&
+                !ManifestorEditorBuildState.SwitchActiveBuildTarget(requestedBuildTargetGroup, requestedBuildTarget))
+            {
+                error = CreateBuildStateMismatchMessage(
+                    buildProfile,
+                    requestedBuildTarget,
+                    "Unity rejected the target switch.");
+                return false;
+            }
+
+            if (!IsRequestedBuildStateActive(buildProfile, requestedBuildTarget))
+            {
+                error = CreateBuildStateMismatchMessage(buildProfile, requestedBuildTarget);
+                return false;
+            }
+
+            error = string.Empty;
+            return true;
+        }
+
+        internal static bool IsRequestedBuildStateActive(BuildProfile buildProfile, BuildTarget requestedBuildTarget)
+        {
+            return ManifestorEditorBuildState.activeBuildProfile == buildProfile &&
+                   ManifestorEditorBuildState.activeBuildTarget == requestedBuildTarget;
+        }
+
+        internal static string CreateBuildStateMismatchMessage(
+            BuildProfile buildProfile,
+            BuildTarget requestedBuildTarget,
+            string reason = null)
+        {
+            var requestedProfilePath = AssetDatabase.GetAssetPath(buildProfile);
+            var activeProfile = ManifestorEditorBuildState.activeBuildProfile;
+            var activeProfilePath = activeProfile == null ? "<classic>" : AssetDatabase.GetAssetPath(activeProfile);
+            var reasonPrefix = string.IsNullOrEmpty(reason) ? string.Empty : reason + " ";
+            return $"{reasonPrefix}Manifest apply requires Build Profile '{requestedProfilePath}' and target " +
+                   $"'{requestedBuildTarget}', but the active Build Profile is '{activeProfilePath}' and target is " +
+                   $"'{ManifestorEditorBuildState.activeBuildTarget}'.";
         }
 
         private static ManifestorBuildStepResult RollBack(
@@ -224,17 +295,7 @@ namespace Manifestor
                 rollbackErrors.Add($"manifest: {exception.Message}");
             }
 
-            try
-            {
-                var previousProfile = string.IsNullOrEmpty(state.previousBuildProfilePath)
-                    ? null
-                    : AssetDatabase.LoadAssetAtPath<BuildProfile>(state.previousBuildProfilePath);
-                BuildProfile.SetActiveBuildProfile(previousProfile);
-            }
-            catch (Exception exception)
-            {
-                rollbackErrors.Add($"build profile: {exception.Message}");
-            }
+            RestoreBuildState(state, rollbackErrors);
 
             try
             {
@@ -278,7 +339,60 @@ namespace Manifestor
                 : ManifestorBuildStepResult.Failed(failureMessage + rollbackSuffix);
         }
 
-        private static bool TryLoadState(string json, out ApplyState state, out string error)
+        internal static void RestoreBuildState(
+            ApplyState state,
+            System.Collections.Generic.ICollection<string> rollbackErrors)
+        {
+            try
+            {
+                var previousProfile = string.IsNullOrEmpty(state.previousBuildProfilePath)
+                    ? null
+                    : AssetDatabase.LoadAssetAtPath<BuildProfile>(state.previousBuildProfilePath);
+                if (!string.IsNullOrEmpty(state.previousBuildProfilePath) && previousProfile == null)
+                {
+                    throw new InvalidOperationException(
+                        $"Build Profile could not be loaded from '{state.previousBuildProfilePath}'.");
+                }
+
+                ManifestorEditorBuildState.SetActiveBuildProfile(previousProfile);
+                if (ManifestorEditorBuildState.activeBuildProfile != previousProfile)
+                {
+                    var actualProfile = ManifestorEditorBuildState.activeBuildProfile;
+                    throw new InvalidOperationException(
+                        $"Expected '{state.previousBuildProfilePath}', actual " +
+                        $"'{(actualProfile == null ? "<classic>" : AssetDatabase.GetAssetPath(actualProfile))}'.");
+                }
+            }
+            catch (Exception exception)
+            {
+                rollbackErrors.Add($"build profile: {exception.Message}");
+            }
+
+            try
+            {
+                if (!state.hasPreviousBuildTarget)
+                {
+                    throw new InvalidOperationException("The apply checkpoint does not contain the previous build target.");
+                }
+
+                var previousBuildTarget = (BuildTarget)state.previousBuildTarget;
+                if (ManifestorEditorBuildState.activeBuildTarget != previousBuildTarget &&
+                    (!ManifestorEditorBuildState.SwitchActiveBuildTarget(
+                         BuildPipeline.GetBuildTargetGroup(previousBuildTarget),
+                         previousBuildTarget) ||
+                     ManifestorEditorBuildState.activeBuildTarget != previousBuildTarget))
+                {
+                    throw new InvalidOperationException(
+                        $"Expected '{previousBuildTarget}', actual '{ManifestorEditorBuildState.activeBuildTarget}'.");
+                }
+            }
+            catch (Exception exception)
+            {
+                rollbackErrors.Add($"build target: {exception.Message}");
+            }
+        }
+
+        internal static bool TryLoadState(string json, out ApplyState state, out string error)
         {
             if (string.IsNullOrEmpty(json))
             {
@@ -314,7 +428,7 @@ namespace Manifestor
         }
 
         [Serializable]
-        private sealed class ApplyState
+        internal sealed class ApplyState
         {
             public bool isActive;
             public string profilePath;
@@ -322,6 +436,8 @@ namespace Manifestor
             public bool previousManifestExisted;
             public string previousManifest;
             public string previousBuildProfilePath;
+            public bool hasPreviousBuildTarget;
+            public int previousBuildTarget;
             public int definesBuildTarget;
             public string previousDefines;
             public bool hadPreviousAppliedProfile;

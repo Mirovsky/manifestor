@@ -21,18 +21,20 @@ namespace Manifestor.Build
                 return ManifestorBuildStepResult.Cancelled("Player build was cancelled before it started.");
             }
 
-            var originalBuildTarget = EditorUserBuildSettings.activeBuildTarget;
             SceneSetup[] originalSceneSetup = null;
             ManifestorBuildStepResult result;
             try
             {
-                var buildPlayerOptions = ApplyDefaults(context);
-                if (!SwitchActiveBuildTarget(buildPlayerOptions.target, buildPlayerOptions.targetGroup))
+                var requestedBuildTarget = BuildProfileUtility.GetBuildTarget(context.profile.buildProfile);
+                if (!ManifestorApplicator.IsRequestedBuildStateActive(context.profile.buildProfile, requestedBuildTarget))
                 {
-                    result = ManifestorBuildStepResult.Failed(
-                        $"Unity could not switch to build target '{buildPlayerOptions.target}'.");
-                    return RestoreBuildTargetAfterFailure(result, originalBuildTarget);
+                    return ManifestorBuildStepResult.Failed(
+                        ManifestorApplicator.CreateBuildStateMismatchMessage(
+                            context.profile.buildProfile,
+                            requestedBuildTarget));
                 }
+
+                var buildPlayerOptions = ApplyDefaults(context);
 
                 UnityEngine.Debug.Log(
                     $"Custom build target '{buildPlayerOptions.target}' will output to " +
@@ -59,10 +61,6 @@ namespace Manifestor.Build
             {
                 result = ManifestorBuildStepResult.Failed($"Failed to build player: {exception.Message}");
             }
-
-            result = result.success
-                ? result
-                : RestoreBuildTargetAfterFailure(result, originalBuildTarget);
 
             return RestoreSceneSetup(result, originalSceneSetup);
         }
@@ -98,34 +96,6 @@ namespace Manifestor.Build
             }
 
             return buildPlayerOptions;
-        }
-
-        private static bool SwitchActiveBuildTarget(BuildTarget buildTarget, BuildTargetGroup buildTargetGroup)
-        {
-            return EditorUserBuildSettings.activeBuildTarget == buildTarget ||
-                   EditorUserBuildSettings.SwitchActiveBuildTarget(buildTargetGroup, buildTarget);
-        }
-
-        private static ManifestorBuildStepResult RestoreBuildTargetAfterFailure(
-            ManifestorBuildStepResult buildResult,
-            BuildTarget originalBuildTarget)
-        {
-            try
-            {
-                var originalBuildTargetGroup = BuildPipeline.GetBuildTargetGroup(originalBuildTarget);
-                if (SwitchActiveBuildTarget(originalBuildTarget, originalBuildTargetGroup))
-                {
-                    return buildResult;
-                }
-
-                return ManifestorBuildStepResult.Failed(
-                    $"{buildResult.message} Unity could not restore build target '{originalBuildTarget}'.");
-            }
-            catch (Exception exception)
-            {
-                return ManifestorBuildStepResult.Failed(
-                    $"{buildResult.message} Failed to restore build target '{originalBuildTarget}': {exception.Message}");
-            }
         }
 
         private static ManifestorBuildStepResult RestoreSceneSetup(
