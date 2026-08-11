@@ -82,7 +82,8 @@ namespace Manifestor.UI
             var profile = _customBuildData.selectedManifestProfile;
             if (profile?.buildProfile == null)
             {
-                LogPipelineStartError(ManifestorBuildPipeline.Build(profile, string.Empty));
+                var buildResult = ManifestorBuildPipeline.Build(profile, string.Empty);
+                LogPipelineStartError(buildResult);
                 return;
             }
 
@@ -101,7 +102,8 @@ namespace Manifestor.UI
             var profile = _customBuildData.selectedManifestProfile;
             if (profile?.buildProfile == null)
             {
-                LogPipelineStartError(ManifestorBuildPipeline.Build(profile, string.Empty));
+                var buildResult = ManifestorBuildPipeline.Build(profile, string.Empty);
+                LogPipelineStartError(buildResult);
                 return;
             }
 
@@ -264,7 +266,8 @@ namespace Manifestor.UI
 
         private void HandleApplyManifestButtonClicked()
         {
-            LogPipelineStartError(ManifestorBuildPipeline.Apply(_customBuildData.selectedManifestProfile));
+            var applyResult = ManifestorBuildPipeline.Apply(_customBuildData.selectedManifestProfile);
+            LogPipelineStartError(applyResult);
         }
 
         private void HandleCustomBuildPipelineCompleted(

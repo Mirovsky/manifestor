@@ -7,13 +7,20 @@ Manifestor also provides a custom build pipeline and a migration window for keep
 ## Requirements
 
 - Unity 6000.4 or newer
-- Git installed and available to the Unity Package Manager
+- Git installed and available to the Unity Package Manager when installing from a Git URL
 
 Manifestor is Editor-only and does not add runtime components to a player build.
 
 ## Installation
 
-Install the package from its Git URL through the Unity Package Manager:
+The preferred installation is to embed Manifestor directly in the Unity project:
+
+1. Clone or download this repository.
+2. Copy `SharedPackages/com.mirovsky.manifestor` into the target project's `Packages` folder.
+
+The resulting path should be `Packages/com.mirovsky.manifestor`. Unity discovers embedded packages in this folder automatically, so Manifestor remains available without a dependency entry in `Packages/manifest.json`.
+
+Alternatively, install the package from its Git URL through the Unity Package Manager:
 
 1. Open **Window > Package Management > Package Manager**.
 2. Select the **+** menu and choose **Install package from git URL...**.

@@ -10,15 +10,8 @@ namespace Manifestor
         public static ManifestPackageDiffResult CreateManifestDiff()
         {
             var manifest = ManifestorIO.LoadExistingManifest();
-            if (ManifestorIO.HasUnchangedGeneratedDependencies(manifest))
-            {
-                return new ManifestPackageDiffResult(
-                    Array.Empty<ManifestPackageDiffEntry>(),
-                    Array.Empty<ManifestPackageDiffEntry>(),
-                    Array.Empty<ManifestPackageDiffEntry>());
-            }
-
-            if (!PackagesListUtils.TryFindAppliedProfilePackageLists(out var packageListTargets))
+            if (ManifestorIO.HasUnchangedGeneratedDependencies(manifest) ||
+                !PackagesListUtils.TryFindAppliedProfilePackageLists(out var packageListTargets))
             {
                 return new ManifestPackageDiffResult(
                     Array.Empty<ManifestPackageDiffEntry>(),

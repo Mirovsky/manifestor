@@ -12,6 +12,9 @@ namespace Manifestor
 
         public string profilePath => _profilePath;
         public string profileFingerprint => _profileFingerprint;
+        public ManifestProfileSO appliedProfile => TryGetLastAppliedProfilePath(out var assetPath)
+            ? AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(assetPath)
+            : null;
 
         public void SetLastAppliedManifest(string path, string fingerprint)
         {
@@ -19,6 +22,7 @@ namespace Manifestor
             _profileFingerprint = fingerprint;
 
             Save(saveAsText: true);
+            EditorApplication.delayCall += EditorApplication.UpdateMainWindowTitle;
         }
 
         public bool TryGetLastAppliedProfilePath(out string assetPath)
@@ -58,6 +62,8 @@ namespace Manifestor
             {
                 _profileFingerprint = string.Empty;
             }
+
+            EditorApplication.delayCall += EditorApplication.UpdateMainWindowTitle;
         }
     }
 }
