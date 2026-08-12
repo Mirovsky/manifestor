@@ -42,9 +42,7 @@ namespace Manifestor.UI
                 new MainToolbarContent("Apply", "Apply the selected manifest profile."),
                 ApplySelectedProfile)
             {
-                enabled = _selectedProfile != null &&
-                          _selectedProfile != ManifestorSettings.instance.appliedProfile &&
-                          !ManifestorBuildPipeline.isActive
+                enabled = _selectedProfile != null
             };
         }
 

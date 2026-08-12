@@ -1,6 +1,7 @@
 namespace Manifestor
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using Build;
     using UnityEditor;
@@ -126,18 +127,23 @@ namespace Manifestor
                 var namedBuildTarget = NamedBuildTarget.FromBuildTargetGroup(BuildPipeline.GetBuildTargetGroup(buildTarget));
                 var activeBuildProfile = ManifestorEditorBuildState.activeBuildProfile;
                 var profileFingerprint = ManifestorProfileFingerprint.Calculate(profile);
-                if (IsAlreadyApplied(
-                        profile,
-                        profilePath,
-                        profileFingerprint,
-                        activeBuildProfile,
-                        buildTarget,
-                        namedBuildTarget))
+                var applyReasons = GetApplyReasons(
+                    profile,
+                    profilePath,
+                    profileFingerprint,
+                    activeBuildProfile,
+                    buildTarget,
+                    namedBuildTarget);
+                if (applyReasons.Count == 0)
                 {
                     ClearState(context);
                     return ManifestorBuildStepResult.Succeeded(
                         $"Manifest profile '{profile.profileName}' is already applied.");
                 }
+
+                Debug.Log(
+                    $"Manifest profile '{profile.profileName}' must be applied because: " +
+                    $"{string.Join("; ", applyReasons)}.");
 
                 state = new ApplyState
                 {
@@ -180,20 +186,10 @@ namespace Manifestor
 
         private static void ApplyExactScriptingDefines(ManifestProfileSO profile, NamedBuildTarget namedBuildTarget)
         {
-            PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", GetExactScriptingDefines(profile)));
+            PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", profile.GetScriptingDefines()));
         }
 
-        private static string[] GetExactScriptingDefines(ManifestProfileSO profile)
-        {
-            return profile.packagesLists
-                .SelectMany(packageList => packageList.defines ?? Array.Empty<string>())
-                .Select(define => (define ?? string.Empty).Trim())
-                .Where(define => !string.IsNullOrEmpty(define))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray();
-        }
-
-        private static bool IsAlreadyApplied(
+        private static IReadOnlyList<string> GetApplyReasons(
             ManifestProfileSO profile,
             string profilePath,
             string profileFingerprint,
@@ -201,27 +197,59 @@ namespace Manifestor
             BuildTarget requestedBuildTarget,
             NamedBuildTarget namedBuildTarget)
         {
-            if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var appliedProfilePath) ||
-                !string.Equals(appliedProfilePath, profilePath, StringComparison.Ordinal) ||
-                !ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out var appliedFingerprint) ||
-                !string.Equals(appliedFingerprint, profileFingerprint, StringComparison.Ordinal) ||
-                activeBuildProfile != profile.buildProfile ||
-                ManifestorEditorBuildState.activeBuildTarget != requestedBuildTarget ||
-                !ManifestorIO.HasMatchingGeneratedManifest(profile))
+            var reasons = new List<string>();
+            if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var appliedProfilePath))
             {
-                return false;
+                reasons.Add("no manifest profile is recorded as applied");
+            }
+            else if (!string.Equals(appliedProfilePath, profilePath, StringComparison.Ordinal))
+            {
+                reasons.Add($"a different manifest profile is recorded as applied ('{appliedProfilePath}')");
             }
 
-            var expectedDefines = GetExactScriptingDefines(profile)
-                .OrderBy(define => define, StringComparer.Ordinal);
+            if (!ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out var appliedFingerprint))
+            {
+                reasons.Add("the applied profile fingerprint is missing");
+            }
+            else if (!string.Equals(appliedFingerprint, profileFingerprint, StringComparison.Ordinal))
+            {
+                reasons.Add("the profile or its referenced dependencies changed");
+            }
+
+            if (activeBuildProfile != profile.buildProfile)
+            {
+                var activeBuildProfilePath = activeBuildProfile == null
+                    ? "<classic>"
+                    : AssetDatabase.GetAssetPath(activeBuildProfile);
+                reasons.Add($"the active Build Profile is '{activeBuildProfilePath}'");
+            }
+
+            if (ManifestorEditorBuildState.activeBuildTarget != requestedBuildTarget)
+            {
+                reasons.Add(
+                    $"the active build target is '{ManifestorEditorBuildState.activeBuildTarget}' instead of " +
+                    $"'{requestedBuildTarget}'");
+            }
+
+            reasons.AddRange(ManifestorIO.GetGeneratedManifestMismatchReasons(profile));
+
+            var expectedDefines = profile.GetScriptingDefines()
+                .OrderBy(define => define, StringComparer.Ordinal)
+                .ToArray();
             var currentDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget)
                 .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(define => define.Trim())
                 .Where(define => !string.IsNullOrEmpty(define))
                 .Distinct(StringComparer.Ordinal)
-                .OrderBy(define => define, StringComparer.Ordinal);
+                .OrderBy(define => define, StringComparer.Ordinal)
+                .ToArray();
 
-            return expectedDefines.SequenceEqual(currentDefines, StringComparer.Ordinal);
+            if (!expectedDefines.SequenceEqual(currentDefines, StringComparer.Ordinal))
+            {
+                reasons.Add("the scripting define symbols changed");
+            }
+
+            return reasons;
         }
 
         internal static bool TryActivateBuildState(

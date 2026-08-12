@@ -18,6 +18,7 @@ namespace Manifestor.Build
         public bool Restore()
         {
             var state = ManifestorBuildPipelineStateStore.Load();
+            ManifestorBuildProgress.Restore(state);
             if (!state.isActive)
             {
                 return false;
@@ -102,6 +103,7 @@ namespace Manifestor.Build
             }
 
             ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Start(state);
             return ManifestorResult.Ok();
         }
 
@@ -117,6 +119,7 @@ namespace Manifestor.Build
             state.message = "Custom build cancellation requested.";
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
             ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Report(state);
             return ManifestorResult.Ok();
         }
 
@@ -184,6 +187,7 @@ namespace Manifestor.Build
             state.message = $"Running build step '{stepType.FullName}'.";
 
             ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Report(state);
 
             var context = new ManifestorBuildContext(
                 profile,
@@ -228,6 +232,7 @@ namespace Manifestor.Build
                     : result.message;
                 state.resumeAfterUtcTicks = DateTime.UtcNow.AddSeconds(result.retryAfterSeconds).Ticks;
                 ManifestorBuildPipelineStateStore.Save(state);
+                ManifestorBuildProgress.Report(state);
                 return;
             }
 
@@ -257,6 +262,7 @@ namespace Manifestor.Build
                 : result.message;
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
             ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Report(state);
         }
 
         private void Complete(
@@ -271,6 +277,7 @@ namespace Manifestor.Build
             state.stepState = string.Empty;
             state.userData = new SerializableBuildUserData();
             ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Finish(state, terminalStatus);
             ManifestorBuildScheduler.Stop();
 
             switch (terminalStatus)
@@ -294,6 +301,201 @@ namespace Manifestor.Build
             return string.IsNullOrEmpty(message)
                 ? $"Build step '{stepType.FullName}' did not complete successfully."
                 : $"Build step '{stepType.FullName}' did not complete successfully: {message}";
+        }
+    }
+
+    internal static class ManifestorBuildProgress
+    {
+        private const string ProgressIdKey = "Manifestor.CustomBuildPipeline.ProgressId";
+        private const int InvalidProgressId = -1;
+
+        public static void Restore(ManifestorBuildPipelineState state)
+        {
+            if (state == null || !state.isActive)
+            {
+                RemoveStaleProgress();
+                return;
+            }
+
+            try
+            {
+                var progressId = GetProgressId();
+                if (progressId == InvalidProgressId || !Progress.Exists(progressId))
+                {
+                    progressId = Create(state);
+                }
+                else
+                {
+                    RegisterCancellation(progressId);
+                }
+
+                Report(progressId, state);
+            }
+            catch (Exception exception)
+            {
+                HandleFailure("restore", exception);
+            }
+        }
+
+        public static void Start(ManifestorBuildPipelineState state)
+        {
+            if (state == null || !state.isActive)
+            {
+                return;
+            }
+
+            try
+            {
+                RemoveStaleProgress();
+                var progressId = Create(state);
+                Report(progressId, state);
+            }
+            catch (Exception exception)
+            {
+                HandleFailure("start", exception);
+            }
+        }
+
+        public static void Report(ManifestorBuildPipelineState state)
+        {
+            if (state == null || !state.isActive)
+            {
+                return;
+            }
+
+            try
+            {
+                var progressId = GetProgressId();
+                if (progressId == InvalidProgressId || !Progress.Exists(progressId))
+                {
+                    progressId = Create(state);
+                }
+
+                Report(progressId, state);
+            }
+            catch (Exception exception)
+            {
+                HandleFailure("update", exception);
+            }
+        }
+
+        public static void Finish(
+            ManifestorBuildPipelineState state,
+            ManifestorBuildPipelineStatus terminalStatus)
+        {
+            try
+            {
+                var progressId = GetProgressId();
+                if (progressId != InvalidProgressId && Progress.Exists(progressId))
+                {
+                    var totalSteps = GetTotalSteps(state);
+                    Progress.Report(progressId, totalSteps, totalSteps, state?.message ?? string.Empty);
+                    Progress.Finish(progressId, ToProgressStatus(terminalStatus));
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"Manifestor could not finish the build progress item: {exception.Message}");
+            }
+            finally
+            {
+                SessionState.EraseInt(ProgressIdKey);
+            }
+        }
+
+        private static int Create(ManifestorBuildPipelineState state)
+        {
+            var progressId = Progress.Start(
+                GetTitle(state),
+                state.message ?? string.Empty,
+                Progress.Options.Unmanaged | Progress.Options.Synchronous,
+                InvalidProgressId);
+            SessionState.SetInt(ProgressIdKey, progressId);
+            Progress.SetPriority(progressId, Progress.Priority.Normal);
+            Progress.SetStepLabel(progressId, "Build steps");
+            RegisterCancellation(progressId);
+            return progressId;
+        }
+
+        private static void RegisterCancellation(int progressId)
+        {
+            Progress.UnregisterCancelCallback(progressId);
+            Progress.RegisterCancelCallback(progressId, RequestCancellation);
+        }
+
+        private static bool RequestCancellation()
+        {
+            return ManifestorBuildPipeline.Cancel().success;
+        }
+
+        private static void Report(int progressId, ManifestorBuildPipelineState state)
+        {
+            var totalSteps = GetTotalSteps(state);
+            var completedSteps = Math.Max(0, Math.Min(state.nextStepIndex, totalSteps));
+            Progress.Report(progressId, completedSteps, totalSteps, state.message ?? string.Empty);
+        }
+
+        private static int GetTotalSteps(ManifestorBuildPipelineState state)
+        {
+            return Math.Max(1, state?.orderedStepTypeNames?.Count ?? 0);
+        }
+
+        private static string GetTitle(ManifestorBuildPipelineState state)
+        {
+            var operationName = state.operation == ManifestorBuildOperation.Apply ? "Apply" : "Build";
+            var profilePath = AssetDatabase.GUIDToAssetPath(state.profileGuid);
+            var profile = AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(profilePath);
+            return profile == null
+                ? $"Manifestor {operationName}"
+                : $"Manifestor {operationName}: {profile.profileName}";
+        }
+
+        private static Progress.Status ToProgressStatus(ManifestorBuildPipelineStatus status)
+        {
+            return status switch
+            {
+                ManifestorBuildPipelineStatus.Succeeded => Progress.Status.Succeeded,
+                ManifestorBuildPipelineStatus.Cancelled => Progress.Status.Canceled,
+                _ => Progress.Status.Failed
+            };
+        }
+
+        private static int GetProgressId()
+        {
+            return SessionState.GetInt(ProgressIdKey, InvalidProgressId);
+        }
+
+        private static void RemoveStaleProgress()
+        {
+            var progressId = GetProgressId();
+            if (progressId != InvalidProgressId && Progress.Exists(progressId))
+            {
+                Progress.Remove(progressId, forceSynchronous: true);
+            }
+
+            SessionState.EraseInt(ProgressIdKey);
+        }
+
+        private static void HandleFailure(string operation, Exception exception)
+        {
+            var progressId = GetProgressId();
+            try
+            {
+                if (progressId != InvalidProgressId && Progress.Exists(progressId))
+                {
+                    Progress.Remove(progressId, forceSynchronous: true);
+                }
+            }
+            catch
+            {
+                // Progress UI failures must not affect the build pipeline.
+            }
+            finally
+            {
+                SessionState.EraseInt(ProgressIdKey);
+            }
+
+            Debug.LogWarning($"Manifestor could not {operation} the build progress item: {exception.Message}");
         }
     }
 }

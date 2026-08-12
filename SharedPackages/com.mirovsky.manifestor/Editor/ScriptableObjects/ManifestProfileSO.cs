@@ -17,6 +17,16 @@ namespace Manifestor
         public string profileName => _profileName;
         public BuildProfile buildProfile => _buildProfile;
         public IReadOnlyList<ManifestorPackagesListSO> packagesLists => _packageLists ?? Array.Empty<ManifestorPackagesListSO>();
+
+        public virtual IReadOnlyList<string> GetScriptingDefines()
+        {
+            return packagesLists
+                .SelectMany(packageList => packageList.defines ?? Array.Empty<string>())
+                .Select(define => (define ?? string.Empty).Trim())
+                .Where(define => !string.IsNullOrEmpty(define))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+        }
     }
 
     [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]

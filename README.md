@@ -97,6 +97,8 @@ Manifestor's assembly is Editor-only and has **Auto Referenced** disabled. Put e
 Subclass `ManifestProfileSO` to add project-specific serialized settings. Mark exactly one concrete, non-generic subclass with `[CustomManifestProfile]`; the Custom Build window will then create that type instead of the base profile.
 
 ```csharp
+using System.Collections.Generic;
+using System.Linq;
 using Manifestor;
 using UnityEngine;
 
@@ -106,10 +108,17 @@ public sealed class GameManifestProfile : ManifestProfileSO
     [SerializeField] private string _distributionChannel;
 
     public string distributionChannel => _distributionChannel;
+
+    public override IReadOnlyList<string> GetScriptingDefines()
+    {
+        return base.GetScriptingDefines()
+            .Append("CUSTOM_DISTRIBUTION")
+            .ToArray();
+    }
 }
 ```
 
-If no custom type is marked, Manifestor creates `ManifestProfileSO`. If more than one type is marked, profile creation is rejected with an error.
+If no custom type is marked, Manifestor creates `ManifestProfileSO`. If more than one type is marked, profile creation is rejected with an error. Override `GetScriptingDefines` to extend the package-list defines by calling the base implementation, or omit the base call to replace them entirely. Overrides must return a non-null, normalized list.
 
 ### Custom build steps
 
