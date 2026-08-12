@@ -102,12 +102,37 @@ namespace Manifestor.Build
             ManifestorBuildStepResult buildResult,
             SceneSetup[] originalSceneSetup)
         {
-            if (originalSceneSetup != null)
+            if (!CanRestoreSceneSetup(originalSceneSetup))
+            {
+                return buildResult;
+            }
+
+            try
             {
                 EditorSceneManager.RestoreSceneManagerSetup(originalSceneSetup);
             }
+            catch (Exception exception)
+            {
+                UnityEngine.Debug.LogWarning(
+                    $"Manifestor could not restore the editor scene setup after the player build: " +
+                    $"{exception.Message}");
+            }
 
             return buildResult;
+        }
+
+        private static bool CanRestoreSceneSetup(SceneSetup[] sceneSetup)
+        {
+            if (sceneSetup == null || sceneSetup.Length == 0)
+            {
+                return false;
+            }
+
+            var loadedSceneCount = sceneSetup.Count(scene => scene.isLoaded);
+            var activeScenes = sceneSetup.Where(scene => scene.isActive).ToArray();
+            return loadedSceneCount > 0 &&
+                   activeScenes.Length == 1 &&
+                   activeScenes[0].isLoaded;
         }
     }
 }
