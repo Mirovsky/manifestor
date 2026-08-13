@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Contribution guidelines
+    url: https://github.com/Mirovsky/manifestor/blob/master/CONTRIBUTING.md
+    about: Review the development setup and contribution requirements before proposing code changes.
