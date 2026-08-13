@@ -1,0 +1,102 @@
+name: Bug report
+description: Report reproducible incorrect behavior in Manifestor
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Manifestor. Please search existing issues before submitting a report.
+
+  - type: input
+    id: manifestor-version
+    attributes:
+      label: Manifestor version
+      description: Enter the installed release, Git tag, or commit hash.
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: unity-version
+    attributes:
+      label: Unity version
+      description: Enter the full Editor version shown in Unity Hub or About Unity.
+      placeholder: 6000.5.3f1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: operating-system
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: installation-method
+    attributes:
+      label: Installation method
+      options:
+        - Git URL
+        - Embedded package
+        - Local file dependency
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Provide the smallest sequence that consistently reproduces the problem.
+      placeholder: |
+        1. Create or configure...
+        2. Open...
+        3. Select...
+        4. Observe...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect Manifestor to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: console-output
+    attributes:
+      label: Unity Console output
+      description: Paste relevant errors and stack traces. Remove credentials, private URLs, user names, and local paths when necessary.
+      render: shell
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add screenshots, sample manifests, or other details that may help diagnose the issue.
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmation
+      options:
+        - label: I searched existing issues for this problem.
+          required: true
+        - label: I removed secrets and other sensitive information from this report.
+          required: true
