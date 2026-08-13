@@ -463,3 +463,15 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
 # End of https://www.toptal.com/developers/gitignore/api/unity,csharp
+
+# Repository-local generated development files
+/.idea/
+/UIElementsSchema/
+/GeneratedAssets/
+/ProfilerCaptures/
+
+# Keep the Unity host project's dependency lock file reproducible. The C#
+# template above ignores directories named Packages by default.
+!/Packages/
+!/Packages/manifest.json
+!/Packages/packages-lock.json

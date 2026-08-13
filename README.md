@@ -4,6 +4,9 @@ Manifestor is a Unity Editor package for defining project package manifests as r
 
 Manifestor also provides a custom build pipeline and a migration window for keeping package-list assets synchronized with manual changes to `Packages/manifest.json`.
 
+> [!NOTE]
+> Manifestor `0.1.0` is an early public release. Its public API may evolve before `1.0.0`.
+
 ## Requirements
 
 - Unity 6000.4 or newer
@@ -27,7 +30,7 @@ Alternatively, install the package from its Git URL through the Unity Package Ma
 3. Enter:
 
    ```text
-   https://github.com/Mirovsky/manifestor.git?path=/SharedPackages/com.mirovsky.manifestor
+   https://github.com/Mirovsky/manifestor.git?path=/SharedPackages/com.mirovsky.manifestor#v0.1.0
    ```
 
 4. Select **Install**.
@@ -210,3 +213,9 @@ if (!buildResult.success)
 ```
 
 Starting the pipeline queues the work; a successful `ManifestorResult` means the operation started, not that every step has finished. Subscribe to `ManifestorBuildPipeline.completed` to observe its final status.
+
+## Development and support
+
+The distributable package lives in `SharedPackages/com.mirovsky.manifestor`; the surrounding Unity project is its development and test host. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and contribution guidance. Report vulnerabilities using [SECURITY.md](SECURITY.md), not a public issue.
+
+Release history is recorded in [CHANGELOG.md](CHANGELOG.md). Manifestor is licensed under the [MIT License](LICENSE).

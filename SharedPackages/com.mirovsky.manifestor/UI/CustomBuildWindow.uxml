@@ -1,7 +1,7 @@
-<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
     <Style src="project://database/Packages/com.mirovsky.manifestor/UI/ManifestorStyles.uss?fileID=7433441132597879392&amp;guid=4e779a97f5705704797dcfeeb2528496&amp;type=3#ManifestorStyles"/>
     <uie:Toolbar style="justify-content: space-between;">
-        <uie:ToolbarButton text="New Manifest" icon-image="project://database/Packages/com.unity.ai.assistant/Editor/UI/Assets/icons/Plus.png?fileID=2800000&amp;guid=417a8b4f0629d164f98ee51563005405&amp;type=3#Plus" name="NewManifestButton" style="padding-top: 3px; padding-right: 3px; padding-bottom: 3px; padding-left: 3px;"/>
+        <uie:ToolbarButton text="New Manifest" name="NewManifestButton" icon-image="project://database/Packages/com.mirovsky.manifestor/Editor/Visuals/d_CreateAddNew.png?fileID=2800000&amp;guid=e694b101fc10eb6458073628553ed7c5&amp;type=3#d_CreateAddNew" style="padding-top: 3px; padding-right: 3px; padding-bottom: 3px; padding-left: 3px;"/>
         <ui:VisualElement style="flex-grow: 0; flex-direction: row;">
             <uie:ToolbarButton text="Package Manager" name="PackageManagerButton"/>
             <uie:ToolbarButton text="Player Settings" name="PlayerSettingsButton"/>
@@ -12,7 +12,7 @@
         <ui:VisualElement name="LeftPanel" class="lhs-pane" style="flex-grow: 0; flex-shrink: 0; flex-basis: auto; width: 225px; min-width: 225px; border-right-width: 1px; border-right-color: rgb(35, 35, 35);">
             <ui:VisualElement style="flex-grow: 0; flex-direction: row; flex-shrink: 0; justify-content: space-between; align-items: center; margin-right: 0; padding-right: 4px;">
                 <ui:Label text="Manifestor Profiles" style="padding-left: 4px; padding-top: 8px; color: rgb(166, 166, 166); margin-bottom: 4px;"/>
-                <ui:Button name="RefreshButton" icon-image="project://database/Packages/com.unity.ai.assistant/Editor/UI/Assets/icons/Refresh.png?fileID=2800000&amp;guid=d4ec5054f34167e46b8b3c36f080bbfa&amp;type=3#Refresh" style="width: 18px; height: 18px; margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0; padding-top: 2px; padding-right: 2px; padding-bottom: 2px; padding-left: 2px;"/>
+                <ui:Button name="RefreshButton" text="" icon-image="project://database/Packages/com.mirovsky.manifestor/Editor/Visuals/d_Refresh.png?fileID=2800000&amp;guid=0766aa36fd9591b4b8485ed97a74fd5c&amp;type=3#d_Refresh" style="height: 18px; margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0; padding-top: 2px; padding-right: 4px; padding-bottom: 2px; padding-left: 4px;"/>
             </ui:VisualElement>
             <ui:ListView item-template="project://database/Packages/com.mirovsky.manifestor/UI/ManifestItem.uxml?fileID=9197481963319205126&amp;guid=da1c31a5e0b24ac4caa19ea9e49b4cce&amp;type=3#ManifestItem" binding-source-selection-mode="AutoAssign" virtualization-method="FixedHeight" allow-add="false" allow-remove="false" show-bound-collection-size="false" show-alternating-row-backgrounds="All" fixed-item-height="18" name="ManifestsListView">
                 <Bindings>

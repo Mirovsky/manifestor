@@ -4,6 +4,21 @@
   "version": "0.1.0",
   "unity": "6000.4",
   "description": "Unity Editor tooling for defining reusable package manifests, applying them per Build Profile, and building projects with profile-specific dependencies and settings.",
+  "license": "MIT",
+  "licensesUrl": "https://github.com/Mirovsky/manifestor/blob/master/SharedPackages/com.mirovsky.manifestor/LICENSE.md",
+  "documentationUrl": "https://github.com/Mirovsky/manifestor/blob/master/SharedPackages/com.mirovsky.manifestor/README.md",
+  "changelogUrl": "https://github.com/Mirovsky/manifestor/blob/master/SharedPackages/com.mirovsky.manifestor/CHANGELOG.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mirovsky/manifestor.git",
+    "directory": "SharedPackages/com.mirovsky.manifestor"
+  },
+  "keywords": [
+    "manifest",
+    "packages",
+    "build-profile",
+    "editor"
+  ],
   "author": {
     "name": "Jakub Mirovský",
     "email": "me@jakubmirovsky.cz",
@@ -12,6 +27,6 @@
   "type": "tool",
   "dependencies": {
     "com.unity.modules.uielements": "1.0.0",
-    "com.unity.settings-manager": "2.0.1"
+    "com.unity.nuget.newtonsoft-json": "3.2.2"
   }
 }

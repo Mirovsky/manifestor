@@ -1,4 +1,4 @@
-<ui:UXML xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" noNamespaceSchemaLocation="../../../UIElementsSchema/UIElements.xsd" editor-extension-mode="True">
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
     <Style src="project://database/Packages/com.mirovsky.manifestor/UI/ManifestorStyles.uss?fileID=7433441132597879392&amp;guid=4e779a97f5705704797dcfeeb2528496&amp;type=3#ManifestorStyles"/>
     <ui:VisualElement data-source-type="Manifestor.UI.CustomBuildWindow+ManifestProfileData, com.mirovsky.manifestor" style="flex-grow: 1; flex-direction: row; justify-content: space-between; align-items: center; padding-left: 16px; padding-right: 4px; padding-top: 1px; padding-bottom: 1px; margin-top: 0; margin-right: 0; margin-bottom: 0; margin-left: 0;">
         <ui:Label text="Profile Name" style="padding-top: 0; padding-right: 0; padding-bottom: 0; padding-left: 0; -unity-text-align: lower-left;">
