@@ -36,7 +36,7 @@ namespace Manifestor.Editor.Tests
                 typeof(PostBuildTestStep)
             };
 
-            var applySteps = ManifestorBuildPlanBuilder.FilterForOperation(resolved, ManifestorBuildOperation.Apply);
+            var applySteps = ManifestorBuildExecution.FilterForOperation(resolved, ManifestorBuildOperation.Apply);
 
             Assert.That(applySteps, Is.EqualTo(resolved.Take(1)));
         }

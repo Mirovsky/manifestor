@@ -1,0 +1,207 @@
+namespace Manifestor.Build
+{
+    using System;
+    using System.Collections.Generic;
+    using System.Linq;
+    using UnityEditor;
+
+    internal static class ManifestorBuildExecution
+    {
+        public static ManifestorResult TryCreatePlan(
+            ManifestProfileSO profile,
+            ManifestorBuildOperation operation,
+            string outputFolderPath,
+            BuildOptions options,
+            ManifestorBuildStepTargets targets,
+            out ManifestorBuildPipelineState state)
+        {
+            state = null;
+
+            var validation = ManifestorProfileValidator.Validate(profile);
+            if (!validation.success)
+            {
+                return validation;
+            }
+
+            if (operation == ManifestorBuildOperation.Build && string.IsNullOrWhiteSpace(outputFolderPath))
+            {
+                return ManifestorResult.Error("Build output folder cannot be empty.");
+            }
+
+            var profilePath = AssetDatabase.GetAssetPath(profile);
+            var profileGuid = AssetDatabase.AssetPathToGUID(profilePath);
+            if (string.IsNullOrEmpty(profilePath) || string.IsNullOrEmpty(profileGuid))
+            {
+                return ManifestorResult.Error("Manifest profile must be saved as a project asset before building.");
+            }
+
+            if (!ManifestorBuildStepOrderResolver.TryResolve(targets, out var allSteps, out var graphError))
+            {
+                return ManifestorResult.Error(graphError);
+            }
+
+            var orderedSteps = FilterForOperation(allSteps, operation);
+            if (orderedSteps.Count == 0)
+            {
+                return ManifestorResult.Error($"No custom build steps are configured for the {operation} operation.");
+            }
+
+            try
+            {
+                var buildPlayerOptions = operation == ManifestorBuildOperation.Build
+                    ? BuildPlayerOptionsFactory.Create(profile, outputFolderPath, options)
+                    : default;
+                state = new ManifestorBuildPipelineState
+                {
+                    isActive = true,
+                    status = ManifestorBuildPipelineStatus.Waiting,
+                    operation = operation,
+                    targets = targets,
+                    message = operation switch
+                    {
+                        ManifestorBuildOperation.Apply => "Manifest apply queued.",
+                        _ => "Custom build queued."
+                    },
+                    profileGuid = profileGuid,
+                    profileFingerprint = ManifestorProfileFingerprint.Calculate(profile),
+                    buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions),
+                    orderedStepTypeNames = orderedSteps.Select(type => type.AssemblyQualifiedName).ToList(),
+                    resumeAfterUtcTicks = DateTime.UtcNow.Ticks
+                };
+                return ManifestorResult.Ok();
+            }
+            catch (Exception exception)
+            {
+                return ManifestorResult.Error($"Failed to create custom build plan: {exception.Message}");
+            }
+        }
+
+        public static ManifestorBuildStepResult ExecuteStep(Type stepType, ManifestorBuildContext context)
+        {
+            try
+            {
+                var step = (IManifestorBuildStep)Activator.CreateInstance(stepType);
+                return step.Tick(context);
+            }
+            catch (Exception exception)
+            {
+                UnityEngine.Debug.LogException(exception);
+                return ManifestorBuildStepResult.Failed(
+                    $"Build step '{stepType.FullName}' threw an exception: {exception.Message}");
+            }
+        }
+
+        public static ManifestorBuildStepResult RunCategorySynchronously(
+            ManifestProfileSO profile,
+            ManifestorBuildStepCategory category,
+            ManifestorBuildStepTargets targets,
+            BuildPlayerOptions buildPlayerOptions,
+            IReadOnlyDictionary<string, string> userData,
+            out BuildPlayerOptions updatedBuildPlayerOptions,
+            out IReadOnlyDictionary<string, string> updatedUserData)
+        {
+            updatedBuildPlayerOptions = buildPlayerOptions;
+            updatedUserData = userData ?? new Dictionary<string, string>();
+            if (!ManifestorBuildStepOrderResolver.TryResolve(targets, out var orderedSteps, out var orderError))
+            {
+                return ManifestorBuildStepResult.Failed(orderError);
+            }
+
+            var expectedFingerprint = ManifestorProfileFingerprint.Calculate(profile);
+            var context = new ManifestorBuildContext(
+                profile,
+                category == ManifestorBuildStepCategory.Apply
+                    ? ManifestorBuildOperation.Apply
+                    : ManifestorBuildOperation.Build,
+                buildPlayerOptions,
+                false,
+                string.Empty,
+                null,
+                userData,
+                null);
+            foreach (var stepType in FilterForCategory(orderedSteps, category))
+            {
+                var profileValidation = ValidateProfile(profile, expectedFingerprint, stepType);
+                if (!profileValidation.success)
+                {
+                    return profileValidation;
+                }
+
+                var result = ExecuteStep(stepType, context);
+                if (result.outcome == ManifestorBuildStepOutcome.Waiting)
+                {
+                    return ManifestorBuildStepResult.Failed(
+                        $"Build step '{stepType.FullName}' returned Waiting in a synchronous build hook.");
+                }
+
+                if (!result.success)
+                {
+                    return result;
+                }
+            }
+
+            if (!string.Equals(
+                    ManifestorProfileFingerprint.Calculate(profile),
+                    expectedFingerprint,
+                    StringComparison.Ordinal))
+            {
+                return ManifestorBuildStepResult.Failed(
+                    $"Manifest profile changed while running {category} steps.");
+            }
+
+            updatedBuildPlayerOptions = context.buildPlayerOptions;
+            updatedUserData = new Dictionary<string, string>(context.userData, StringComparer.Ordinal);
+            return ManifestorBuildStepResult.Succeeded();
+        }
+
+        public static ManifestorBuildStepResult PreparePlayer(
+            ManifestorBuildContext context,
+            ManifestorBuildStepTargets targets)
+        {
+            return ManifestorPlayerBuild.Prepare(context, targets);
+        }
+
+        public static ManifestorBuildStepResult BuildPlayer(ManifestorBuildContext context)
+        {
+            return ManifestorPlayerBuild.Build(context);
+        }
+
+        public static void ApplyScenesToEditorBuildSettings(string[] scenes)
+        {
+            ManifestorPlayerBuild.ApplyScenesToEditorBuildSettings(scenes);
+        }
+
+        internal static List<Type> FilterForOperation(
+            IEnumerable<Type> orderedSteps,
+            ManifestorBuildOperation operation)
+        {
+            return operation == ManifestorBuildOperation.Apply
+                ? FilterForCategory(orderedSteps, ManifestorBuildStepCategory.Apply)
+                : orderedSteps.ToList();
+        }
+
+        internal static List<Type> FilterForCategory(
+            IEnumerable<Type> orderedSteps,
+            ManifestorBuildStepCategory category)
+        {
+            return orderedSteps
+                .Where(stepType => ManifestorBuildStepOrderResolver.GetCategory(stepType) == category)
+                .ToList();
+        }
+
+        private static ManifestorBuildStepResult ValidateProfile(
+            ManifestProfileSO profile,
+            string expectedFingerprint,
+            Type nextStepType)
+        {
+            return string.Equals(
+                ManifestorProfileFingerprint.Calculate(profile),
+                expectedFingerprint,
+                StringComparison.Ordinal)
+                ? ManifestorBuildStepResult.Succeeded()
+                : ManifestorBuildStepResult.Failed(
+                    $"Manifest profile changed before build step '{nextStepType.FullName}'.");
+        }
+
+    }
+}

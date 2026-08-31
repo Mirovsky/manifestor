@@ -40,6 +40,12 @@ The package assembly has **Auto Referenced** disabled. Put extensions in an Edit
 - Implement `IManifestorBuildStep`, assign an Apply, PreBuild, or PostBuild category with `[ManifestorBuildStep]`, and add optional `[ManifestorBuildStepOrder]` constraints.
 - Use `ManifestorUnityEditorPipeline.Apply` or `.Build` for queued Editor operations, or `ManifestorHeadlessBuild.BuildFromCommandLine` from a terminal.
 
+## Addressables
+
+Manifestor leaves Addressables builds to Unity. For Standard Editor and headless builds, set the project's **Build Addressables on Player Build** option to **Build Addressables content on Player Build**; Unity then builds the active Addressables player data builder during Manifestor's `BuildPipeline.BuildPlayer` action. Use a UBA-enabled `PreBuild` step for shared preparation, but do not call `CleanPlayerContent` or `BuildPlayerContent` from that step.
+
+For Unity Build Automation, enable **Yes, build Addressables** on the UBA target. UBA runs its Addressables stage after Manifestor PreBuild and before PostBuild. Disable content-update and content-only options when producing a full player build.
+
 ## Unity Build Automation
 
 Unity Build Automation must update package and compile-time define state before its normal Unity process starts. Configure a repository pre-build shell script to launch Unity with `Manifestor.Build.ManifestorUnityBuildAutomation.Apply`, and set `MANIFESTOR_PROFILE_PATH` to the profile asset path. Forward UBA's pre-export and post-export hooks to `ManifestorUnityBuildAutomation.PreBuild` and `.PostBuild`. Pre-Export runs the same player-build preparation as Standard builds and temporarily applies its finalized scenes to Editor Build Settings; Post-Export restores the preceding scene list. Configure UBA to use project build-settings scenes. Steps can opt out of UBA with `ManifestorBuildStepTargets.Standard`.
