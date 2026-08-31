@@ -65,7 +65,7 @@ namespace Manifestor.Build
                     profileGuid = profileGuid,
                     profileFingerprint = ManifestorProfileFingerprint.Calculate(profile),
                     buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions),
-                    orderedStepTypeNames = orderedSteps.Select(type => type.AssemblyQualifiedName).ToList(),
+                    actions = CreateActions(orderedSteps, operation),
                     resumeAfterUtcTicks = DateTime.UtcNow.Ticks
                 };
                 return ManifestorResult.Ok();
@@ -154,23 +154,6 @@ namespace Manifestor.Build
             return ManifestorBuildStepResult.Succeeded();
         }
 
-        public static ManifestorBuildStepResult PreparePlayer(
-            ManifestorBuildContext context,
-            ManifestorBuildStepTargets targets)
-        {
-            return ManifestorPlayerBuild.Prepare(context, targets);
-        }
-
-        public static ManifestorBuildStepResult BuildPlayer(ManifestorBuildContext context)
-        {
-            return ManifestorPlayerBuild.Build(context);
-        }
-
-        public static void ApplyScenesToEditorBuildSettings(string[] scenes)
-        {
-            ManifestorPlayerBuild.ApplyScenesToEditorBuildSettings(scenes);
-        }
-
         internal static List<Type> FilterForOperation(
             IEnumerable<Type> orderedSteps,
             ManifestorBuildOperation operation)
@@ -189,6 +172,32 @@ namespace Manifestor.Build
                 .ToList();
         }
 
+        private static List<ManifestorBuildAction> CreateActions(
+            IReadOnlyList<Type> orderedSteps,
+            ManifestorBuildOperation operation)
+        {
+            var actions = new List<ManifestorBuildAction>();
+            var playerBuildAdded = operation != ManifestorBuildOperation.Build;
+            foreach (var stepType in orderedSteps)
+            {
+                if (!playerBuildAdded &&
+                    ManifestorBuildStepOrderResolver.GetCategory(stepType) == ManifestorBuildStepCategory.PostBuild)
+                {
+                    actions.Add(ManifestorBuildAction.PlayerBuild());
+                    playerBuildAdded = true;
+                }
+
+                actions.Add(ManifestorBuildAction.Step(stepType));
+            }
+
+            if (!playerBuildAdded)
+            {
+                actions.Add(ManifestorBuildAction.PlayerBuild());
+            }
+
+            return actions;
+        }
+
         private static ManifestorBuildStepResult ValidateProfile(
             ManifestProfileSO profile,
             string expectedFingerprint,
@@ -202,6 +211,5 @@ namespace Manifestor.Build
                 : ManifestorBuildStepResult.Failed(
                     $"Manifest profile changed before build step '{nextStepType.FullName}'.");
         }
-
     }
 }

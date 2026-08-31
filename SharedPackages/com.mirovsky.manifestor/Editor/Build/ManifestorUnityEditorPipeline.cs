@@ -26,16 +26,13 @@ namespace Manifestor.Build
     {
         private static readonly ManifestorBuildRunner Runner = new(InvokeCompleted);
 
-        public static bool isActive => ManifestorBuildRunner.isActive;
+        public static bool isActive => Runner.isActive;
 
         public static event Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> completed;
 
         static ManifestorUnityEditorPipeline()
         {
-            if (Runner.Restore())
-            {
-                Runner.Queue();
-            }
+            Runner.Restore();
         }
 
         public static bool TryGetOrderedSteps(out IReadOnlyList<Type> orderedSteps, out string error)
@@ -70,13 +67,7 @@ namespace Manifestor.Build
 
         public static ManifestorResult Cancel()
         {
-            var result = Runner.Cancel();
-            if (result.success)
-            {
-                Runner.Queue();
-            }
-
-            return result;
+            return Runner.Cancel();
         }
 
         internal static ManifestorResult Start(
@@ -86,30 +77,12 @@ namespace Manifestor.Build
             BuildOptions options,
             ManifestorBuildStepTargets targets)
         {
-            if (ManifestorBuildRunner.isActive || BuildPipeline.isBuildingPlayer)
-            {
-                return ManifestorResult.Error("A custom build is already in progress.");
-            }
-
-            var planResult = ManifestorBuildExecution.TryCreatePlan(
+            return Runner.Start(
                 profile,
                 operation,
                 outputFolderPath,
                 options,
-                targets,
-                out var state);
-            if (!planResult.success)
-            {
-                return planResult;
-            }
-
-            var startResult = Runner.Start(state);
-            if (startResult.success)
-            {
-                Runner.Queue();
-            }
-
-            return startResult;
+                targets);
         }
 
         private static void InvokeCompleted(

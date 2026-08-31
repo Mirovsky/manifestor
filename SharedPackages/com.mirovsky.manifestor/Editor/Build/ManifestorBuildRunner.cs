@@ -9,7 +9,7 @@ namespace Manifestor.Build
         private readonly Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> _completed;
         private bool _isQueued;
 
-        public static bool isActive => ManifestorBuildPipelineStateStore.Load().isActive;
+        public bool isActive => ManifestorBuildPipelineStateStore.Load().isActive;
 
         public ManifestorBuildRunner(Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> completed)
         {
@@ -27,7 +27,7 @@ namespace Manifestor.Build
             EditorApplication.update += Process;
         }
 
-        public void Stop()
+        private void Stop()
         {
             if (!_isQueued)
             {
@@ -38,18 +38,20 @@ namespace Manifestor.Build
             _isQueued = false;
         }
 
-        public bool Restore()
+        public void Restore()
         {
             var state = ManifestorBuildPipelineStateStore.Load();
             ManifestorBuildProgress.Restore(state);
+            ManifestorBuildPipelineStateStore.Save(state);
             if (!state.isActive)
             {
-                return false;
+                return;
             }
 
             if (state.status != ManifestorBuildPipelineStatus.Running)
             {
-                return true;
+                Queue();
+                return;
             }
 
             var recoveryMessage = TryHandleInterruption(state, out var handlerMessage)
@@ -60,16 +62,20 @@ namespace Manifestor.Build
             Complete(
                 state,
                 ManifestorBuildPipelineStatus.Failed,
-                $"Custom build was interrupted while running step '{state.currentStepTypeName}' and was not retried.{recoveryMessage}");
-
-            return false;
+                $"Custom build was interrupted while running {GetCurrentActionName(state)} and was not retried.{recoveryMessage}");
         }
 
         private bool TryHandleInterruption(ManifestorBuildPipelineState state, out string message)
         {
             message = string.Empty;
 
-            var stepType = Type.GetType(state.currentStepTypeName ?? string.Empty);
+            var action = GetCurrentAction(state);
+            if (action?.kind != ManifestorBuildActionKind.Step)
+            {
+                return false;
+            }
+
+            var stepType = Type.GetType(action.stepTypeName ?? string.Empty);
             if (stepType == null ||
                 !typeof(IManifestorBuildStepInterruptionHandler).IsAssignableFrom(stepType))
             {
@@ -100,7 +106,12 @@ namespace Manifestor.Build
             }
         }
 
-        public ManifestorResult Start(ManifestorBuildPipelineState state)
+        public ManifestorResult Start(
+            ManifestProfileSO profile,
+            ManifestorBuildOperation operation,
+            string outputFolderPath,
+            BuildOptions options,
+            ManifestorBuildStepTargets targets)
         {
             var currentState = ManifestorBuildPipelineStateStore.Load();
             if (currentState.isActive || BuildPipeline.isBuildingPlayer)
@@ -108,8 +119,21 @@ namespace Manifestor.Build
                 return ManifestorResult.Error("A custom build is already in progress.");
             }
 
-            ManifestorBuildPipelineStateStore.Save(state);
+            var planResult = ManifestorBuildExecution.TryCreatePlan(
+                profile,
+                operation,
+                outputFolderPath,
+                options,
+                targets,
+                out var state);
+            if (!planResult.success)
+            {
+                return planResult;
+            }
+
             ManifestorBuildProgress.Start(state);
+            ManifestorBuildPipelineStateStore.Save(state);
+            Queue();
             return ManifestorResult.Ok();
         }
 
@@ -124,8 +148,9 @@ namespace Manifestor.Build
             state.cancellationRequested = true;
             state.message = "Custom build cancellation requested.";
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
+            ManifestorBuildPipelineStateStore.Save(state);
+            Queue();
             return ManifestorResult.Ok();
         }
 
@@ -137,21 +162,36 @@ namespace Manifestor.Build
                 return;
             }
 
-            if (state.cancellationRequested && string.IsNullOrEmpty(state.currentStepTypeName))
+            if (state.cancellationRequested && !state.currentActionStarted)
             {
                 Complete(state, ManifestorBuildPipelineStatus.Cancelled, "Custom build was cancelled.");
                 return;
             }
 
-            var hasRemainingSteps = state.orderedStepTypeNames != null &&
-                                    state.nextStepIndex < state.orderedStepTypeNames.Count;
-            var stepTypeName = hasRemainingSteps
-                ? state.orderedStepTypeNames[state.nextStepIndex]
-                : string.Empty;
-            var stepType = hasRemainingSteps ? Type.GetType(stepTypeName) : null;
-            if (hasRemainingSteps && stepType == null)
+            if (state.actions == null || state.nextActionIndex < 0)
             {
-                Complete(state, ManifestorBuildPipelineStatus.Failed, $"Build step type '{stepTypeName}' could not be loaded.");
+                Complete(state, ManifestorBuildPipelineStatus.Failed, "The persisted build action list is invalid.");
+                return;
+            }
+
+            if (state.nextActionIndex >= state.actions.Count)
+            {
+                Complete(
+                    state,
+                    ManifestorBuildPipelineStatus.Succeeded,
+                    state.operation == ManifestorBuildOperation.Apply
+                        ? "Manifest apply completed successfully."
+                        : "Custom build completed successfully.");
+                return;
+            }
+
+            var action = state.actions[state.nextActionIndex];
+            if (action == null)
+            {
+                Complete(
+                    state,
+                    ManifestorBuildPipelineStatus.Failed,
+                    $"Build action at index {state.nextActionIndex} is missing.");
                 return;
             }
 
@@ -181,29 +221,37 @@ namespace Manifestor.Build
                 return;
             }
 
-            if (ShouldBuildPlayer(state, stepType))
+            if (action.kind == ManifestorBuildActionKind.PlayerBuild)
             {
                 RunPlayerBuild(state, profile);
                 return;
             }
 
-            if (!hasRemainingSteps)
+            if (action.kind != ManifestorBuildActionKind.Step)
             {
                 Complete(
                     state,
-                    ManifestorBuildPipelineStatus.Succeeded,
-                    state.operation == ManifestorBuildOperation.Apply
-                        ? "Manifest apply completed successfully."
-                        : "Custom build completed successfully.");
+                    ManifestorBuildPipelineStatus.Failed,
+                    $"Build action at index {state.nextActionIndex} has an unsupported kind '{action.kind}'.");
+                return;
+            }
+
+            var stepType = Type.GetType(action.stepTypeName ?? string.Empty);
+            if (stepType == null)
+            {
+                Complete(
+                    state,
+                    ManifestorBuildPipelineStatus.Failed,
+                    $"Build step type '{action.stepTypeName}' could not be loaded.");
                 return;
             }
 
             state.status = ManifestorBuildPipelineStatus.Running;
-            state.currentStepTypeName = stepTypeName;
+            state.currentActionStarted = true;
             state.message = $"Running build step '{stepType.FullName}'.";
 
-            ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
+            ManifestorBuildPipelineStateStore.Save(state);
 
             var context = CreateContext(state, profile, state.cancellationRequested, true);
 
@@ -219,8 +267,8 @@ namespace Manifestor.Build
                     ? $"Build step '{stepType.FullName}' is waiting."
                     : result.message;
                 state.resumeAfterUtcTicks = DateTime.UtcNow.AddSeconds(result.retryAfterSeconds).Ticks;
-                ManifestorBuildPipelineStateStore.Save(state);
                 ManifestorBuildProgress.Report(state);
+                ManifestorBuildPipelineStateStore.Save(state);
                 return;
             }
 
@@ -241,36 +289,28 @@ namespace Manifestor.Build
                 return;
             }
 
-            state.nextStepIndex++;
-            state.currentStepTypeName = string.Empty;
+            state.nextActionIndex++;
+            state.currentActionStarted = false;
             state.stepState = string.Empty;
             state.status = ManifestorBuildPipelineStatus.Waiting;
             state.message = string.IsNullOrEmpty(result.message)
                 ? $"Build step '{stepType.FullName}' completed."
                 : result.message;
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
-        }
-
-        private static bool ShouldBuildPlayer(ManifestorBuildPipelineState state, Type nextStepType)
-        {
-            return state.operation == ManifestorBuildOperation.Build &&
-                   !state.playerBuildCompleted &&
-                   (nextStepType == null ||
-                    ManifestorBuildStepOrderResolver.GetCategory(nextStepType) == ManifestorBuildStepCategory.PostBuild);
+            ManifestorBuildPipelineStateStore.Save(state);
         }
 
         private void RunPlayerBuild(ManifestorBuildPipelineState state, ManifestProfileSO profile)
         {
             state.status = ManifestorBuildPipelineStatus.Running;
-            state.currentStepTypeName = typeof(ManifestorBuildExecution).AssemblyQualifiedName;
+            state.currentActionStarted = true;
             state.message = "Building the Unity player.";
-            ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
+            ManifestorBuildPipelineStateStore.Save(state);
 
             var context = CreateContext(state, profile, state.cancellationRequested, false);
-            var preparationResult = ManifestorBuildExecution.PreparePlayer(context, state.targets);
+            var preparationResult = ManifestorPlayerBuild.Prepare(context, state.targets);
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             if (!preparationResult.success)
             {
@@ -285,7 +325,7 @@ namespace Manifestor.Build
                 return;
             }
 
-            var result = ManifestorBuildExecution.BuildPlayer(context);
+            var result = ManifestorPlayerBuild.Build(context);
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             if (!result.success)
             {
@@ -298,13 +338,13 @@ namespace Manifestor.Build
                 return;
             }
 
-            state.playerBuildCompleted = true;
-            state.currentStepTypeName = string.Empty;
+            state.nextActionIndex++;
+            state.currentActionStarted = false;
             state.status = ManifestorBuildPipelineStatus.Waiting;
             state.message = result.message;
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
+            ManifestorBuildPipelineStateStore.Save(state);
         }
 
         private void Complete(
@@ -315,10 +355,10 @@ namespace Manifestor.Build
             state.isActive = false;
             state.status = terminalStatus;
             state.message = message;
-            state.currentStepTypeName = string.Empty;
+            state.currentActionStarted = false;
             state.stepState = string.Empty;
-            ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Finish(state, terminalStatus);
+            ManifestorBuildPipelineStateStore.Save(state);
             Stop();
 
             switch (terminalStatus)
@@ -338,6 +378,29 @@ namespace Manifestor.Build
 
             state.userData = new SerializableBuildUserData();
             ManifestorBuildPipelineStateStore.Save(state);
+        }
+
+        private static ManifestorBuildAction GetCurrentAction(ManifestorBuildPipelineState state)
+        {
+            return state?.actions != null &&
+                   state.nextActionIndex >= 0 &&
+                   state.nextActionIndex < state.actions.Count
+                ? state.actions[state.nextActionIndex]
+                : null;
+        }
+
+        private static string GetCurrentActionName(ManifestorBuildPipelineState state)
+        {
+            var action = GetCurrentAction(state);
+            if (action?.kind == ManifestorBuildActionKind.PlayerBuild)
+            {
+                return "the Unity player build";
+            }
+
+            var stepType = Type.GetType(action?.stepTypeName ?? string.Empty);
+            return stepType == null
+                ? "an unknown build action"
+                : $"build step '{stepType.FullName}'";
         }
 
         private static string CreateStepMessage(Type stepType, string message)
@@ -394,34 +457,34 @@ namespace Manifestor.Build
 
     internal static class ManifestorBuildProgress
     {
-        private const string ProgressIdKey = "Manifestor.UnityEditorPipeline.ProgressId";
         private const int InvalidProgressId = -1;
+        private const string LegacyProgressIdKey = "Manifestor.UnityEditorPipeline.ProgressId";
 
         public static void Restore(ManifestorBuildPipelineState state)
         {
+            RemoveLegacyProgress();
             if (state == null || !state.isActive)
             {
-                RemoveStaleProgress();
+                RemoveStaleProgress(state);
                 return;
             }
 
             try
             {
-                var progressId = GetProgressId();
-                if (progressId == InvalidProgressId || !Progress.Exists(progressId))
+                if (state.progressId == InvalidProgressId || !Progress.Exists(state.progressId))
                 {
-                    progressId = Create(state);
+                    state.progressId = Create(state);
                 }
                 else
                 {
-                    RegisterCancellation(progressId);
+                    RegisterCancellation(state.progressId);
                 }
 
-                Report(progressId, state);
+                Report(state.progressId, state);
             }
             catch (Exception exception)
             {
-                HandleFailure("restore", exception);
+                HandleFailure("restore", state, exception);
             }
         }
 
@@ -434,13 +497,13 @@ namespace Manifestor.Build
 
             try
             {
-                RemoveStaleProgress();
-                var progressId = Create(state);
-                Report(progressId, state);
+                RemoveStaleProgress(state);
+                state.progressId = Create(state);
+                Report(state.progressId, state);
             }
             catch (Exception exception)
             {
-                HandleFailure("start", exception);
+                HandleFailure("start", state, exception);
             }
         }
 
@@ -453,17 +516,16 @@ namespace Manifestor.Build
 
             try
             {
-                var progressId = GetProgressId();
-                if (progressId == InvalidProgressId || !Progress.Exists(progressId))
+                if (state.progressId == InvalidProgressId || !Progress.Exists(state.progressId))
                 {
-                    progressId = Create(state);
+                    state.progressId = Create(state);
                 }
 
-                Report(progressId, state);
+                Report(state.progressId, state);
             }
             catch (Exception exception)
             {
-                HandleFailure("update", exception);
+                HandleFailure("update", state, exception);
             }
         }
 
@@ -473,12 +535,11 @@ namespace Manifestor.Build
         {
             try
             {
-                var progressId = GetProgressId();
-                if (progressId != InvalidProgressId && Progress.Exists(progressId))
+                if (state != null && state.progressId != InvalidProgressId && Progress.Exists(state.progressId))
                 {
                     var totalSteps = GetTotalSteps(state);
-                    Progress.Report(progressId, totalSteps, totalSteps, state?.message ?? string.Empty);
-                    Progress.Finish(progressId, ToProgressStatus(terminalStatus));
+                    Progress.Report(state.progressId, totalSteps, totalSteps, state.message ?? string.Empty);
+                    Progress.Finish(state.progressId, ToProgressStatus(terminalStatus));
                 }
             }
             catch (Exception exception)
@@ -487,7 +548,10 @@ namespace Manifestor.Build
             }
             finally
             {
-                SessionState.EraseInt(ProgressIdKey);
+                if (state != null)
+                {
+                    state.progressId = InvalidProgressId;
+                }
             }
         }
 
@@ -498,7 +562,6 @@ namespace Manifestor.Build
                 state.message ?? string.Empty,
                 Progress.Options.Unmanaged | Progress.Options.Synchronous,
                 InvalidProgressId);
-            SessionState.SetInt(ProgressIdKey, progressId);
             Progress.SetPriority(progressId, Progress.Priority.Normal);
             Progress.SetStepLabel(progressId, "Build steps");
             RegisterCancellation(progressId);
@@ -519,20 +582,13 @@ namespace Manifestor.Build
         private static void Report(int progressId, ManifestorBuildPipelineState state)
         {
             var totalSteps = GetTotalSteps(state);
-            var completedActions = state.nextStepIndex + (state.playerBuildCompleted ? 1 : 0);
-            var completedSteps = Math.Max(0, Math.Min(completedActions, totalSteps));
+            var completedSteps = Math.Max(0, Math.Min(state.nextActionIndex, totalSteps));
             Progress.Report(progressId, completedSteps, totalSteps, state.message ?? string.Empty);
         }
 
         private static int GetTotalSteps(ManifestorBuildPipelineState state)
         {
-            var stepCount = state?.orderedStepTypeNames?.Count ?? 0;
-            if (state?.operation == ManifestorBuildOperation.Build)
-            {
-                stepCount++;
-            }
-
-            return Math.Max(1, stepCount);
+            return Math.Max(1, state?.actions?.Count ?? 0);
         }
 
         private static string GetTitle(ManifestorBuildPipelineState state)
@@ -559,30 +615,49 @@ namespace Manifestor.Build
             };
         }
 
-        private static int GetProgressId()
+        private static void RemoveStaleProgress(ManifestorBuildPipelineState state)
         {
-            return SessionState.GetInt(ProgressIdKey, InvalidProgressId);
-        }
-
-        private static void RemoveStaleProgress()
-        {
-            var progressId = GetProgressId();
-            if (progressId != InvalidProgressId && Progress.Exists(progressId))
+            if (state != null && state.progressId != InvalidProgressId && Progress.Exists(state.progressId))
             {
-                Progress.Remove(progressId, forceSynchronous: true);
+                Progress.Remove(state.progressId, forceSynchronous: true);
             }
 
-            SessionState.EraseInt(ProgressIdKey);
+            if (state != null)
+            {
+                state.progressId = InvalidProgressId;
+            }
         }
 
-        private static void HandleFailure(string operation, Exception exception)
+        private static void RemoveLegacyProgress()
         {
-            var progressId = GetProgressId();
+            var progressId = SessionState.GetInt(LegacyProgressIdKey, InvalidProgressId);
             try
             {
                 if (progressId != InvalidProgressId && Progress.Exists(progressId))
                 {
                     Progress.Remove(progressId, forceSynchronous: true);
+                }
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"Manifestor could not remove its legacy progress item: {exception.Message}");
+            }
+            finally
+            {
+                SessionState.EraseInt(LegacyProgressIdKey);
+            }
+        }
+
+        private static void HandleFailure(
+            string operation,
+            ManifestorBuildPipelineState state,
+            Exception exception)
+        {
+            try
+            {
+                if (state != null && state.progressId != InvalidProgressId && Progress.Exists(state.progressId))
+                {
+                    Progress.Remove(state.progressId, forceSynchronous: true);
                 }
             }
             catch
@@ -591,7 +666,10 @@ namespace Manifestor.Build
             }
             finally
             {
-                SessionState.EraseInt(ProgressIdKey);
+                if (state != null)
+                {
+                    state.progressId = InvalidProgressId;
+                }
             }
 
             Debug.LogWarning($"Manifestor could not {operation} the build progress item: {exception.Message}");

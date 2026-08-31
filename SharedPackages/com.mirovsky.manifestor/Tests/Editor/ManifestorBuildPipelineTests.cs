@@ -83,7 +83,11 @@ namespace Manifestor.Editor.Tests
             {
                 isActive = true,
                 status = ManifestorBuildPipelineStatus.Running,
-                currentStepTypeName = typeof(ApplyManifestBuildStep).AssemblyQualifiedName
+                actions = new System.Collections.Generic.List<ManifestorBuildAction>
+                {
+                    ManifestorBuildAction.Step(typeof(ApplyManifestBuildStep))
+                },
+                currentActionStarted = true
             });
             var completed = false;
             var runner = new ManifestorBuildRunner((_, status) =>
@@ -92,9 +96,8 @@ namespace Manifestor.Editor.Tests
             });
             LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("was interrupted"));
 
-            var shouldResume = runner.Restore();
+            runner.Restore();
 
-            Assert.That(shouldResume, Is.False);
             Assert.That(completed, Is.True);
             Assert.That(ManifestorBuildPipelineStateStore.Load().isActive, Is.False);
             Assert.That(ManifestorBuildPipelineStateStore.Load().status, Is.EqualTo(ManifestorBuildPipelineStatus.Failed));
@@ -114,6 +117,8 @@ namespace Manifestor.Editor.Tests
 
             Assert.That(result.success, Is.True);
             Assert.That(ManifestorBuildPipelineStateStore.Load().cancellationRequested, Is.True);
+            LogAssert.Expect(LogType.Warning, "Custom build was cancelled.");
+            runner.Tick();
         }
 
         [Test]

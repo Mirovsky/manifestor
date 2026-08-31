@@ -204,7 +204,7 @@ namespace Manifestor.Editor.Tests
                 string.Empty,
                 null);
 
-            var result = ManifestorBuildExecution.PreparePlayer(
+            var result = ManifestorPlayerBuild.Prepare(
                 context,
                 ManifestorBuildStepTargets.Standard);
 
