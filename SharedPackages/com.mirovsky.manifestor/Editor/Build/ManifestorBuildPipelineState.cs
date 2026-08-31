@@ -8,18 +8,20 @@ namespace Manifestor.Build
     [Serializable]
     internal sealed class ManifestorBuildPipelineState
     {
-        public const int CurrentVersion = 3;
+        public const int CurrentVersion = 4;
 
         public int version = CurrentVersion;
         public bool isActive;
         public ManifestorBuildPipelineStatus status;
         public ManifestorBuildOperation operation;
+        public ManifestorBuildStepTargets targets = ManifestorBuildStepTargets.Standard;
         public string message;
         public string profileGuid;
         public string profileFingerprint;
         public SerializableBuildPlayerOptions buildPlayerOptions = new();
         public List<string> orderedStepTypeNames = new();
         public int nextStepIndex;
+        public bool playerBuildCompleted;
         public string currentStepTypeName;
         public string stepState;
         public SerializableBuildUserData userData = new();
@@ -127,7 +129,7 @@ namespace Manifestor.Build
 
     internal static class ManifestorBuildPipelineStateStore
     {
-        internal const string StateKey = "Manifestor.CustomBuildPipeline.State";
+        internal const string StateKey = "Manifestor.UnityEditorPipeline.State";
 
         public static ManifestorBuildPipelineState Load()
         {

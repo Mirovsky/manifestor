@@ -2,9 +2,11 @@
 
 ## [0.2.0] - 2026-08-31
 
-- Split custom build steps into explicit Apply, PreBuild, and Build categories.
-- Added `ManifestorBuildAutomation.Bootstrap` for applying package and define state before Unity Build Automation starts its build process.
-- Added a strict synchronous `ManifestorBuildAutomation.PreExport` verifier and PreBuild-step runner.
+- Split custom build steps into explicit Apply, PreBuild, and PostBuild categories around a shared player-build action.
+- Added `ManifestorUnityEditorPipeline`, `ManifestorHeadlessBuild`, and `ManifestorUnityBuildAutomation` entry points over one execution core.
+- Added target flags for Standard and Unity Build Automation step participation.
+- Added UBA Apply, PreBuild, and PostBuild phases with persisted user data.
+- Unified player target, option, and scene preparation across Standard and UBA pipelines; UBA now applies the finalized scenes during Pre-Export and restores Editor Build Settings after export.
 - Replaced inline ordering on `[ManifestorBuildStep]` with repeatable `[ManifestorBuildStepOrder]` constraints.
 - Added category-aware ordering and build-step visualization.
 

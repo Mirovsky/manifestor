@@ -16,15 +16,15 @@ namespace Manifestor.Editor.Tests
         }
 
         [Test]
-        public void Resolve_FullOrderPlacesConstrainedStepsBeforeBuildPlayer()
+        public void Resolve_FullOrderPlacesApplyBeforePostBuild()
         {
             var success = ManifestorBuildStepOrderResolver.TryResolve(
-                new[] { typeof(BuildPlayerStep), typeof(ApplyManifestBuildStep) },
+                new[] { typeof(PostBuildTestStep), typeof(ApplyManifestBuildStep) },
                 out var steps,
                 out var error);
 
             Assert.That(success, Is.True, error);
-            Assert.That(steps.IndexOf(typeof(ApplyManifestBuildStep)), Is.LessThan(steps.IndexOf(typeof(BuildPlayerStep))));
+            Assert.That(steps.IndexOf(typeof(ApplyManifestBuildStep)), Is.LessThan(steps.IndexOf(typeof(PostBuildTestStep))));
         }
 
         [Test]
@@ -33,7 +33,7 @@ namespace Manifestor.Editor.Tests
             var resolved = new[]
             {
                 typeof(ApplyManifestBuildStep),
-                typeof(BuildPlayerStep)
+                typeof(PostBuildTestStep)
             };
 
             var applySteps = ManifestorBuildPlanBuilder.FilterForOperation(resolved, ManifestorBuildOperation.Apply);
@@ -128,6 +128,19 @@ namespace Manifestor.Editor.Tests
             Assert.That(state.isActive, Is.False);
             Assert.That(state.status, Is.EqualTo(ManifestorBuildPipelineStatus.Failed));
             Assert.That(SessionState.GetString(ManifestorBuildPipelineStateStore.StateKey, string.Empty), Is.Empty);
+        }
+
+        [ManifestorBuildStep(ManifestorBuildStepCategory.PostBuild)]
+        private sealed class PostBuildTestStep : IManifestorBuildStep
+        {
+            public PostBuildTestStep()
+            {
+            }
+
+            public ManifestorBuildStepResult Tick(ManifestorBuildContext context)
+            {
+                return ManifestorBuildStepResult.Succeeded();
+            }
         }
     }
 }

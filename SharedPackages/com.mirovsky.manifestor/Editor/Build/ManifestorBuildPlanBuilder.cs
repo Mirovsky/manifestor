@@ -13,6 +13,23 @@ namespace Manifestor.Build
             BuildOptions options,
             out ManifestorBuildPipelineState state)
         {
+            return TryCreate(
+                profile,
+                operation,
+                outputFolderPath,
+                options,
+                ManifestorBuildStepTargets.Standard,
+                out state);
+        }
+
+        public static ManifestorResult TryCreate(
+            ManifestProfileSO profile,
+            ManifestorBuildOperation operation,
+            string outputFolderPath,
+            BuildOptions options,
+            ManifestorBuildStepTargets targets,
+            out ManifestorBuildPipelineState state)
+        {
             state = null;
 
             var validation = ManifestorProfileValidator.Validate(profile);
@@ -33,7 +50,7 @@ namespace Manifestor.Build
                 return ManifestorResult.Error("Manifest profile must be saved as a project asset before building.");
             }
 
-            if (!ManifestorBuildStepOrderResolver.TryResolve(out var allSteps, out var graphError))
+            if (!ManifestorBuildStepOrderResolver.TryResolve(targets, out var allSteps, out var graphError))
             {
                 return ManifestorResult.Error(graphError);
             }
@@ -54,10 +71,10 @@ namespace Manifestor.Build
                     isActive = true,
                     status = ManifestorBuildPipelineStatus.Waiting,
                     operation = operation,
+                    targets = targets,
                     message = operation switch
                     {
                         ManifestorBuildOperation.Apply => "Manifest apply queued.",
-                        ManifestorBuildOperation.PreBuild => "Pre-build queued.",
                         _ => "Custom build queued."
                     },
                     profileGuid = profileGuid,
@@ -78,15 +95,9 @@ namespace Manifestor.Build
             System.Collections.Generic.IEnumerable<Type> orderedSteps,
             ManifestorBuildOperation operation)
         {
-            var lastCategory = operation switch
-            {
-                ManifestorBuildOperation.Apply => ManifestorBuildStepCategory.Apply,
-                ManifestorBuildOperation.PreBuild => ManifestorBuildStepCategory.PreBuild,
-                _ => ManifestorBuildStepCategory.Build
-            };
-            return orderedSteps
-                .Where(stepType => ManifestorBuildStepOrderResolver.GetCategory(stepType) <= lastCategory)
-                .ToList();
+            return operation == ManifestorBuildOperation.Apply
+                ? FilterForCategory(orderedSteps, ManifestorBuildStepCategory.Apply)
+                : orderedSteps.ToList();
         }
 
         internal static System.Collections.Generic.List<Type> FilterForCategory(

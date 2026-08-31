@@ -18,12 +18,11 @@ namespace Manifestor.Build
     public enum ManifestorBuildOperation
     {
         Apply,
-        PreBuild,
         Build
     }
 
     [InitializeOnLoad]
-    public static class ManifestorBuildPipeline
+    public static class ManifestorUnityEditorPipeline
     {
         private static readonly ManifestorBuildRunner Runner = new(InvokeCompleted);
 
@@ -31,7 +30,7 @@ namespace Manifestor.Build
 
         public static event Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> completed;
 
-        static ManifestorBuildPipeline()
+        static ManifestorUnityEditorPipeline()
         {
             ManifestorBuildScheduler.Initialize(Runner.Tick);
             if (Runner.Restore())
@@ -49,7 +48,12 @@ namespace Manifestor.Build
 
         public static ManifestorResult Apply(ManifestProfileSO profile)
         {
-            return Start(profile, ManifestorBuildOperation.Apply, string.Empty, BuildOptions.None);
+            return Start(
+                profile,
+                ManifestorBuildOperation.Apply,
+                string.Empty,
+                BuildOptions.None,
+                ManifestorBuildStepTargets.Standard);
         }
 
         public static ManifestorResult Build(
@@ -57,7 +61,12 @@ namespace Manifestor.Build
             string outputFolderPath,
             BuildOptions options = BuildOptions.None)
         {
-            return Start(profile, ManifestorBuildOperation.Build, outputFolderPath, options);
+            return Start(
+                profile,
+                ManifestorBuildOperation.Build,
+                outputFolderPath,
+                options,
+                ManifestorBuildStepTargets.Standard);
         }
 
         public static ManifestorResult Cancel()
@@ -71,11 +80,12 @@ namespace Manifestor.Build
             return result;
         }
 
-        private static ManifestorResult Start(
+        internal static ManifestorResult Start(
             ManifestProfileSO profile,
             ManifestorBuildOperation operation,
             string outputFolderPath,
-            BuildOptions options)
+            BuildOptions options,
+            ManifestorBuildStepTargets targets)
         {
             if (ManifestorBuildRunner.isActive || BuildPipeline.isBuildingPlayer)
             {
@@ -87,6 +97,7 @@ namespace Manifestor.Build
                 operation,
                 outputFolderPath,
                 options,
+                targets,
                 out var state);
             if (!planResult.success)
             {
@@ -116,7 +127,9 @@ namespace Manifestor.Build
             {
                 if (handler is not Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> buildHandler)
                 {
-                    Debug.LogError("Handler is not of type Action<CustomBuildOperation, CustomBuildPipelineStatus>");
+                    Debug.LogError(
+                        $"Handler is not of type Action<{nameof(ManifestorBuildOperation)}, " +
+                        $"{nameof(ManifestorBuildPipelineStatus)}>.");
                     continue;
                 }
 

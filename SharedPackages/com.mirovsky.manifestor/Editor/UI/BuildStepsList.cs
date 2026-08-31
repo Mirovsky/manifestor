@@ -23,8 +23,8 @@ namespace Manifestor.UI
         private readonly VisualElement _applySequence;
         private readonly VisualElement _preBuildRow;
         private readonly VisualElement _preBuildSequence;
-        private readonly VisualElement _buildRow;
-        private readonly VisualElement _buildSequence;
+        private readonly VisualElement _postBuildRow;
+        private readonly VisualElement _postBuildSequence;
 
         public BuildStepsList()
         {
@@ -41,8 +41,8 @@ namespace Manifestor.UI
             _preBuildRow = CreateRow("Pre-Build Steps:", out _preBuildSequence);
             Add(_preBuildRow);
 
-            _buildRow = CreateRow("Build Steps:", out _buildSequence);
-            Add(_buildRow);
+            _postBuildRow = CreateRow("Post-Build Steps:", out _postBuildSequence);
+            Add(_postBuildRow);
         }
 
         public void SetSteps(bool isValid, IReadOnlyList<Type> steps, string error)
@@ -57,12 +57,12 @@ namespace Manifestor.UI
             _errorBox.style.display = DisplayStyle.None;
             _applyRow.style.display = DisplayStyle.Flex;
             _preBuildRow.style.display = DisplayStyle.Flex;
-            _buildRow.style.display = DisplayStyle.Flex;
+            _postBuildRow.style.display = DisplayStyle.Flex;
 
-            PartitionSteps(steps, out var applySteps, out var preBuildSteps, out var buildSteps);
+            PartitionSteps(steps, out var applySteps, out var preBuildSteps, out var postBuildSteps);
             PopulateSequence(_applySequence, applySteps);
             PopulateSequence(_preBuildSequence, preBuildSteps);
-            PopulateSequence(_buildSequence, buildSteps);
+            PopulateSequence(_postBuildSequence, postBuildSteps);
         }
 
         private static VisualElement CreateRow(string title, out VisualElement sequence)
@@ -85,11 +85,11 @@ namespace Manifestor.UI
             IReadOnlyList<Type> steps,
             out List<Type> applySteps,
             out List<Type> preBuildSteps,
-            out List<Type> buildSteps)
+            out List<Type> postBuildSteps)
         {
             applySteps = new List<Type>();
             preBuildSteps = new List<Type>();
-            buildSteps = new List<Type>();
+            postBuildSteps = new List<Type>();
 
             if (steps == null)
             {
@@ -112,7 +112,7 @@ namespace Manifestor.UI
                         preBuildSteps.Add(step);
                         break;
                     default:
-                        buildSteps.Add(step);
+                        postBuildSteps.Add(step);
                         break;
                 }
             }
@@ -160,7 +160,7 @@ namespace Manifestor.UI
             _errorBox.style.display = DisplayStyle.Flex;
             _applyRow.style.display = DisplayStyle.None;
             _preBuildRow.style.display = DisplayStyle.None;
-            _buildRow.style.display = DisplayStyle.None;
+            _postBuildRow.style.display = DisplayStyle.None;
         }
     }
 }
