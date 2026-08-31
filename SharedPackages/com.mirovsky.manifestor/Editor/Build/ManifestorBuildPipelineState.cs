@@ -8,7 +8,7 @@ namespace Manifestor.Build
     [Serializable]
     internal sealed class ManifestorBuildPipelineState
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
 
         public int version = CurrentVersion;
         public bool isActive;

@@ -1,6 +1,7 @@
 using Manifestor.Build;
 
-[ManifestorBuildStep(typeof(BuildPlayerStep), ManifestorBuildStepOrder.Before, runDuringApply = true)]
+[ManifestorBuildStep(ManifestorBuildStepCategory.PreBuild)]
+[ManifestorBuildStepOrder(typeof(BuildPlayerStep), ManifestorBuildStepOrder.Before)]
 public class TestManifestorBuild : IManifestorBuildStep
 {
     public ManifestorBuildStepResult Tick(ManifestorBuildContext context)

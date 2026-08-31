@@ -2,7 +2,7 @@
 
 Manifestor is an Editor-only Unity package for defining reusable package manifests and applying them together with Unity Build Profiles. Profiles can control package dependencies, scoped registries, testable packages, scripting define symbols, and custom build steps.
 
-> Manifestor `0.1.0` is an early public release. Review and commit `Packages/manifest.json` before first applying a profile.
+> Manifestor `0.2.0` is an early public release. Review and commit `Packages/manifest.json` before first applying a profile.
 
 ## Requirements
 
@@ -14,7 +14,7 @@ Manifestor is an Editor-only Unity package for defining reusable package manifes
 Install from Git with **Window > Package Management > Package Manager > + > Install package from git URL**:
 
 ```text
-https://github.com/Mirovsky/manifestor.git?path=/SharedPackages/com.mirovsky.manifestor#v0.1.0
+https://github.com/Mirovsky/manifestor.git?path=/SharedPackages/com.mirovsky.manifestor#v0.2.0
 ```
 
 For embedded development, copy this directory to `Packages/com.mirovsky.manifestor` in the target project.
@@ -35,8 +35,14 @@ When `Packages/manifest.json` changes outside Manifestor, use **Tools > Manifest
 The package assembly has **Auto Referenced** disabled. Put extensions in an Editor assembly and explicitly reference `com.mirovsky.manifestor`.
 
 - Subclass `ManifestProfileSO` and mark one concrete type with `[CustomManifestProfile]` to add project-specific settings.
-- Implement `IManifestorBuildStep` and use `[ManifestorBuildStep]` to add and order pipeline steps.
-- Use `ManifestorBuildPipeline.Apply` or `ManifestorBuildPipeline.Build` to start operations from Editor code, and subscribe to `ManifestorBuildPipeline.completed` for the final result.
+- Implement `IManifestorBuildStep`, assign an Apply, PreBuild, or Build category with `[ManifestorBuildStep]`, and add optional `[ManifestorBuildStepOrder]` constraints.
+- Use `ManifestorBuildPipeline.Apply` or `ManifestorBuildPipeline.Build` for local queued operations and subscribe to `ManifestorBuildPipeline.completed` for the final result.
+
+## Unity Build Automation
+
+Unity Build Automation must update package and compile-time define state before its normal Unity process starts. Configure a repository pre-build shell script to launch Unity with `Manifestor.Build.ManifestorBuildAutomation.Bootstrap`, and set `MANIFESTOR_PROFILE_PATH` to the profile asset path. Configure an `Assets/Editor` forwarding method to call `ManifestorBuildAutomation.PreExport` after UBA compilation. The pre-export call verifies the bootstrap state, activates the Unity Build Profile, and runs PreBuild-category steps synchronously.
+
+See the repository README for complete shell, assembly definition, forwarding-hook, and UBA configuration examples.
 
 See the [repository README](https://github.com/Mirovsky/manifestor#readme) for detailed usage and API examples.
 

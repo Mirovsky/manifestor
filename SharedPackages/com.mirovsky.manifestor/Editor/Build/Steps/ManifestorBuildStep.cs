@@ -11,6 +11,13 @@ namespace Manifestor.Build
         After
     }
 
+    public enum ManifestorBuildStepCategory
+    {
+        Apply,
+        PreBuild,
+        Build
+    }
+
     public enum ManifestorBuildStepOutcome
     {
         Succeeded,
@@ -19,19 +26,24 @@ namespace Manifestor.Build
         Cancelled
     }
 
-    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = false)]
     public sealed class ManifestorBuildStepAttribute : Attribute
+    {
+        public ManifestorBuildStepCategory category { get; }
+
+        public ManifestorBuildStepAttribute(ManifestorBuildStepCategory category)
+        {
+            this.category = category;
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Class, AllowMultiple = true, Inherited = false)]
+    public sealed class ManifestorBuildStepOrderAttribute : Attribute
     {
         public Type relativeStepType { get; }
         public ManifestorBuildStepOrder order { get; }
-        public bool hasConstraint => relativeStepType != null;
-        public bool runDuringApply { get; set; }
 
-        public ManifestorBuildStepAttribute()
-        {
-        }
-
-        public ManifestorBuildStepAttribute(Type relativeStepType, ManifestorBuildStepOrder order)
+        public ManifestorBuildStepOrderAttribute(Type relativeStepType, ManifestorBuildStepOrder order)
         {
             this.relativeStepType = relativeStepType ?? throw new ArgumentNullException(nameof(relativeStepType));
             this.order = order;
@@ -214,6 +226,7 @@ namespace Manifestor.Build
             }
 
             var stepTypeSet = new HashSet<Type>(stepTypes);
+            var categories = stepTypes.ToDictionary(type => type, GetCategory);
             var outgoingEdges = stepTypes.ToDictionary(type => type, _ => new HashSet<Type>());
             var incomingCounts = stepTypes.ToDictionary(type => type, _ => 0);
             var processedSteps = new HashSet<Type>();
@@ -226,15 +239,10 @@ namespace Manifestor.Build
                 }
 
                 var attributes = stepType
-                    .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
-                    .Cast<ManifestorBuildStepAttribute>();
+                    .GetCustomAttributes(typeof(ManifestorBuildStepOrderAttribute), false)
+                    .Cast<ManifestorBuildStepOrderAttribute>();
                 foreach (var attribute in attributes)
                 {
-                    if (!attribute.hasConstraint)
-                    {
-                        continue;
-                    }
-
                     var relativeType = attribute.relativeStepType;
                     if (relativeType == stepType)
                     {
@@ -249,6 +257,13 @@ namespace Manifestor.Build
 
                     var before = attribute.order == ManifestorBuildStepOrder.Before ? stepType : relativeType;
                     var after = attribute.order == ManifestorBuildStepOrder.Before ? relativeType : stepType;
+                    if (categories[before] > categories[after])
+                    {
+                        error = $"Build step ordering cannot place {categories[before]} step '{before.FullName}' " +
+                                $"before {categories[after]} step '{after.FullName}'.";
+                        return false;
+                    }
+
                     if (outgoingEdges[before].Add(after))
                     {
                         incomingCounts[after]++;
@@ -258,8 +273,11 @@ namespace Manifestor.Build
 
             while (orderedSteps.Count < stepTypes.Count)
             {
-                var nextStep = stepTypes.FirstOrDefault(
-                    type => incomingCounts[type] == 0 && !processedSteps.Contains(type));
+                var nextStep = stepTypes
+                    .Where(type => incomingCounts[type] == 0 && !processedSteps.Contains(type))
+                    .OrderBy(type => categories[type])
+                    .ThenBy(type => type.AssemblyQualifiedName, StringComparer.Ordinal)
+                    .FirstOrDefault();
                 if (nextStep == null)
                 {
                     error = "Custom build step ordering contains a dependency cycle.";
@@ -275,6 +293,15 @@ namespace Manifestor.Build
             }
 
             return true;
+        }
+
+        internal static ManifestorBuildStepCategory GetCategory(Type stepType)
+        {
+            return stepType
+                .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
+                .Cast<ManifestorBuildStepAttribute>()
+                .Single()
+                .category;
         }
 
         private static bool TryValidateStepType(Type stepType, out string error)
@@ -294,6 +321,13 @@ namespace Manifestor.Build
             if (stepType.GetConstructor(Type.EmptyTypes) == null)
             {
                 error = $"Custom build step '{stepType.FullName}' must have a public parameterless constructor.";
+                return false;
+            }
+
+            var category = GetCategory(stepType);
+            if (!Enum.IsDefined(typeof(ManifestorBuildStepCategory), category))
+            {
+                error = $"Custom build step '{stepType.FullName}' has an invalid category '{category}'.";
                 return false;
             }
 

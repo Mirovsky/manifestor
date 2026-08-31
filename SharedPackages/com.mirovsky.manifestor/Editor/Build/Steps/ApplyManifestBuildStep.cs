@@ -1,6 +1,6 @@
 namespace Manifestor.Build
 {
-    [ManifestorBuildStep(runDuringApply = true)]
+    [ManifestorBuildStep(ManifestorBuildStepCategory.Apply)]
     public sealed class ApplyManifestBuildStep : IManifestorBuildStep, IManifestorBuildStepInterruptionHandler
     {
         public ManifestorBuildStepResult Tick(ManifestorBuildContext context)

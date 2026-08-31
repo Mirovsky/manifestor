@@ -2,7 +2,6 @@ namespace Manifestor.UI
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using Build;
     using UnityEngine.UIElements;
 
@@ -22,6 +21,8 @@ namespace Manifestor.UI
         private readonly HelpBox _errorBox;
         private readonly VisualElement _applyRow;
         private readonly VisualElement _applySequence;
+        private readonly VisualElement _preBuildRow;
+        private readonly VisualElement _preBuildSequence;
         private readonly VisualElement _buildRow;
         private readonly VisualElement _buildSequence;
 
@@ -36,6 +37,9 @@ namespace Manifestor.UI
 
             _applyRow = CreateRow("Apply Steps:", out _applySequence);
             Add(_applyRow);
+
+            _preBuildRow = CreateRow("Pre-Build Steps:", out _preBuildSequence);
+            Add(_preBuildRow);
 
             _buildRow = CreateRow("Build Steps:", out _buildSequence);
             Add(_buildRow);
@@ -52,10 +56,12 @@ namespace Manifestor.UI
             _errorBox.text = string.Empty;
             _errorBox.style.display = DisplayStyle.None;
             _applyRow.style.display = DisplayStyle.Flex;
+            _preBuildRow.style.display = DisplayStyle.Flex;
             _buildRow.style.display = DisplayStyle.Flex;
 
-            PartitionSteps(steps, out var applySteps, out var buildSteps);
+            PartitionSteps(steps, out var applySteps, out var preBuildSteps, out var buildSteps);
             PopulateSequence(_applySequence, applySteps);
+            PopulateSequence(_preBuildSequence, preBuildSteps);
             PopulateSequence(_buildSequence, buildSteps);
         }
 
@@ -78,9 +84,11 @@ namespace Manifestor.UI
         private static void PartitionSteps(
             IReadOnlyList<Type> steps,
             out List<Type> applySteps,
+            out List<Type> preBuildSteps,
             out List<Type> buildSteps)
         {
             applySteps = new List<Type>();
+            preBuildSteps = new List<Type>();
             buildSteps = new List<Type>();
 
             if (steps == null)
@@ -95,11 +103,18 @@ namespace Manifestor.UI
                     continue;
                 }
 
-                var runsDuringApply = step
-                    .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
-                    .Cast<ManifestorBuildStepAttribute>()
-                    .Any(attribute => attribute.runDuringApply);
-                (runsDuringApply ? applySteps : buildSteps).Add(step);
+                switch (ManifestorBuildStepOrderResolver.GetCategory(step))
+                {
+                    case ManifestorBuildStepCategory.Apply:
+                        applySteps.Add(step);
+                        break;
+                    case ManifestorBuildStepCategory.PreBuild:
+                        preBuildSteps.Add(step);
+                        break;
+                    default:
+                        buildSteps.Add(step);
+                        break;
+                }
             }
         }
 
@@ -144,6 +159,7 @@ namespace Manifestor.UI
                 : error;
             _errorBox.style.display = DisplayStyle.Flex;
             _applyRow.style.display = DisplayStyle.None;
+            _preBuildRow.style.display = DisplayStyle.None;
             _buildRow.style.display = DisplayStyle.None;
         }
     }
