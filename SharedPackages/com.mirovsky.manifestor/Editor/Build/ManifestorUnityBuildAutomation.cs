@@ -13,12 +13,9 @@ namespace Manifestor.Build
     {
         public const string ProfilePathEnvironmentVariable = "MANIFESTOR_PROFILE_PATH";
 
-        private const int ReceiptVersion = 3;
+        private const int ReceiptVersion = 4;
         private const string ReceiptRelativePath = "Library/Manifestor/unity-build-automation.json";
         private const string PackageName = "com.mirovsky.manifestor";
-        private const string ApplyingPhase = "Applying";
-        private const string AppliedPhase = "Applied";
-        private const string PreBuiltPhase = "PreBuilt";
 
         internal static bool isApplyPending =>
             !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(ProfilePathEnvironmentVariable)) &&
@@ -26,7 +23,9 @@ namespace Manifestor.Build
 
         static ManifestorUnityBuildAutomation()
         {
-            if (!Application.isBatchMode || !TryLoadReceipt(out var receipt) || receipt.phase != ApplyingPhase)
+            if (!Application.isBatchMode ||
+                !TryLoadReceipt(out var receipt) ||
+                receipt.phase != UnityBuildAutomationPhase.Applying)
             {
                 return;
             }
@@ -50,7 +49,7 @@ namespace Manifestor.Build
                 SaveReceipt(new UnityBuildAutomationReceipt
                 {
                     version = ReceiptVersion,
-                    phase = ApplyingPhase,
+                    phase = UnityBuildAutomationPhase.Applying,
                     profilePath = profilePath,
                     profileFingerprint = ManifestorProfileFingerprint.Calculate(profile)
                 });
@@ -80,7 +79,7 @@ namespace Manifestor.Build
             try
             {
                 receipt = LoadReceipt();
-                var profile = VerifyReceipt(receipt, AppliedPhase);
+                var profile = VerifyReceipt(receipt, UnityBuildAutomationPhase.Applied);
                 ActivateBuildProfile(profile);
                 VerifyApplyState(profile, receipt);
                 RunCategory(profile, receipt, ManifestorBuildStepCategory.PreBuild);
@@ -89,9 +88,9 @@ namespace Manifestor.Build
                     EditorBuildSettings.scenes);
                 receipt.hasOriginalEditorBuildSettingsScenes = true;
                 SaveReceipt(receipt);
-                ManifestorBuildExecution.ApplyScenesToEditorBuildSettings(
+                ManifestorPlayerBuild.ApplyScenesToEditorBuildSettings(
                     receipt.buildPlayerOptions?.scenes);
-                receipt.phase = PreBuiltPhase;
+                receipt.phase = UnityBuildAutomationPhase.PreBuilt;
                 SaveReceipt(receipt);
                 Debug.Log($"Manifestor UBA pre-build completed for '{receipt.profilePath}'.");
             }
@@ -111,7 +110,7 @@ namespace Manifestor.Build
             try
             {
                 receipt = LoadReceipt();
-                var profile = VerifyReceipt(receipt, PreBuiltPhase);
+                var profile = VerifyReceipt(receipt, UnityBuildAutomationPhase.PreBuilt);
                 var buildPlayerOptions = receipt.buildPlayerOptions?.ToBuildPlayerOptions() ?? default;
                 buildPlayerOptions.locationPathName = exportPath ?? string.Empty;
                 receipt.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
@@ -143,7 +142,7 @@ namespace Manifestor.Build
         {
             if (operation != ManifestorBuildOperation.Apply ||
                 !TryLoadReceipt(out var receipt) ||
-                receipt.phase != ApplyingPhase)
+                receipt.phase != UnityBuildAutomationPhase.Applying)
             {
                 return;
             }
@@ -160,7 +159,7 @@ namespace Manifestor.Build
                 var profile = LoadAndValidateProfile(receipt.profilePath);
                 var pipelineState = ManifestorBuildPipelineStateStore.Load();
                 var buildTarget = BuildProfileUtility.GetBuildTarget(profile.buildProfile);
-                receipt.phase = AppliedPhase;
+                receipt.phase = UnityBuildAutomationPhase.Applied;
                 receipt.profileFingerprint = ManifestorProfileFingerprint.Calculate(profile);
                 receipt.manifestFingerprint = CalculateFingerprint(ManifestorIO.LoadManifestText());
                 receipt.definesFingerprint = CalculateFingerprint(ManifestorProfileMaterializer.GetDefinesString(profile));
@@ -227,7 +226,7 @@ namespace Manifestor.Build
                 string.Empty,
                 null,
                 receipt.userData?.ToDictionary());
-            var result = ManifestorBuildExecution.PreparePlayer(
+            var result = ManifestorPlayerBuild.Prepare(
                 context,
                 ManifestorBuildStepTargets.UnityBuildAutomation);
             if (!result.success)
@@ -268,7 +267,7 @@ namespace Manifestor.Build
 
         private static ManifestProfileSO VerifyReceipt(
             UnityBuildAutomationReceipt receipt,
-            string expectedPhase)
+            UnityBuildAutomationPhase expectedPhase)
         {
             var profilePath = GetProfilePathFromEnvironment();
             if (receipt.phase != expectedPhase)
@@ -354,11 +353,6 @@ namespace Manifestor.Build
 
         private static void VerifyApplyState(ManifestProfileSO profile, UnityBuildAutomationReceipt receipt)
         {
-            if (receipt.version != ReceiptVersion)
-            {
-                throw new InvalidOperationException($"UBA receipt version '{receipt.version}' is unsupported.");
-            }
-
             if (!string.Equals(
                     ManifestorProfileFingerprint.Calculate(profile),
                     receipt.profileFingerprint,
@@ -493,10 +487,18 @@ namespace Manifestor.Build
         }
 
         [Serializable]
+        private enum UnityBuildAutomationPhase
+        {
+            Applying,
+            Applied,
+            PreBuilt
+        }
+
+        [Serializable]
         private sealed class UnityBuildAutomationReceipt
         {
             public int version;
-            public string phase;
+            public UnityBuildAutomationPhase phase;
             public string profilePath;
             public string profileFingerprint;
             public string manifestFingerprint;

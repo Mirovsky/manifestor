@@ -8,7 +8,7 @@ namespace Manifestor.Build
     [Serializable]
     internal sealed class ManifestorBuildPipelineState
     {
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         public int version = CurrentVersion;
         public bool isActive;
@@ -19,14 +19,41 @@ namespace Manifestor.Build
         public string profileGuid;
         public string profileFingerprint;
         public SerializableBuildPlayerOptions buildPlayerOptions = new();
-        public List<string> orderedStepTypeNames = new();
-        public int nextStepIndex;
-        public bool playerBuildCompleted;
-        public string currentStepTypeName;
+        public List<ManifestorBuildAction> actions = new();
+        public int nextActionIndex;
+        public bool currentActionStarted;
         public string stepState;
         public SerializableBuildUserData userData = new();
         public bool cancellationRequested;
         public long resumeAfterUtcTicks;
+        public int progressId = -1;
+    }
+
+    internal enum ManifestorBuildActionKind
+    {
+        Step,
+        PlayerBuild
+    }
+
+    [Serializable]
+    internal sealed class ManifestorBuildAction
+    {
+        public ManifestorBuildActionKind kind;
+        public string stepTypeName;
+
+        public static ManifestorBuildAction Step(Type stepType)
+        {
+            return new ManifestorBuildAction
+            {
+                kind = ManifestorBuildActionKind.Step,
+                stepTypeName = stepType.AssemblyQualifiedName
+            };
+        }
+
+        public static ManifestorBuildAction PlayerBuild()
+        {
+            return new ManifestorBuildAction { kind = ManifestorBuildActionKind.PlayerBuild };
+        }
     }
 
     [Serializable]
