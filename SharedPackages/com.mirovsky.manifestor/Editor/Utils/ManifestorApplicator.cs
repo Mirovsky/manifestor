@@ -2,7 +2,6 @@ namespace Manifestor
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using Build;
     using UnityEditor;
     using UnityEditor.Build;
@@ -132,8 +131,7 @@ namespace Manifestor
                     profilePath,
                     profileFingerprint,
                     activeBuildProfile,
-                    buildTarget,
-                    namedBuildTarget);
+                    buildTarget);
                 if (applyReasons.Count == 0)
                 {
                     ClearState(context);
@@ -170,8 +168,7 @@ namespace Manifestor
                     return RollBack(context, state, buildStateError);
                 }
 
-                ManifestorIO.SaveManifest(ManifestorIO.ConvertToManifest(profile));
-                ApplyExactScriptingDefines(profile, namedBuildTarget);
+                ManifestorProfileMaterializer.ApplyManifestAndDefines(profile);
                 Client.Resolve();
                 _resolveRequest = Client.List(offlineMode: false, includeIndirectDependencies: true);
                 return ManifestorBuildStepResult.Waiting("Waiting for Unity Package Manager to resolve the manifest.");
@@ -184,18 +181,12 @@ namespace Manifestor
             }
         }
 
-        private static void ApplyExactScriptingDefines(ManifestProfileSO profile, NamedBuildTarget namedBuildTarget)
-        {
-            PlayerSettings.SetScriptingDefineSymbols(namedBuildTarget, string.Join(";", profile.GetScriptingDefines()));
-        }
-
         private static IReadOnlyList<string> GetApplyReasons(
             ManifestProfileSO profile,
             string profilePath,
             string profileFingerprint,
             BuildProfile activeBuildProfile,
-            BuildTarget requestedBuildTarget,
-            NamedBuildTarget namedBuildTarget)
+            BuildTarget requestedBuildTarget)
         {
             var reasons = new List<string>();
             if (!ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var appliedProfilePath))
@@ -233,18 +224,7 @@ namespace Manifestor
 
             reasons.AddRange(ManifestorIO.GetGeneratedManifestMismatchReasons(profile));
 
-            var expectedDefines = profile.GetScriptingDefines()
-                .OrderBy(define => define, StringComparer.Ordinal)
-                .ToArray();
-            var currentDefines = PlayerSettings.GetScriptingDefineSymbols(namedBuildTarget)
-                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(define => define.Trim())
-                .Where(define => !string.IsNullOrEmpty(define))
-                .Distinct(StringComparer.Ordinal)
-                .OrderBy(define => define, StringComparer.Ordinal)
-                .ToArray();
-
-            if (!expectedDefines.SequenceEqual(currentDefines, StringComparer.Ordinal))
+            if (!ManifestorProfileMaterializer.HasExpectedDefines(profile, out _))
             {
                 reasons.Add("the scripting define symbols changed");
             }

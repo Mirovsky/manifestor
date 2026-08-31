@@ -142,9 +142,12 @@ namespace Manifestor.Build
                 Complete(
                     state,
                     ManifestorBuildPipelineStatus.Succeeded,
-                    state.operation == ManifestorBuildOperation.Apply
-                        ? "Manifest apply completed successfully."
-                        : "Custom build completed successfully.");
+                    state.operation switch
+                    {
+                        ManifestorBuildOperation.Apply => "Manifest apply completed successfully.",
+                        ManifestorBuildOperation.PreBuild => "Pre-build completed successfully.",
+                        _ => "Custom build completed successfully."
+                    });
                 return;
             }
 
@@ -442,7 +445,12 @@ namespace Manifestor.Build
 
         private static string GetTitle(ManifestorBuildPipelineState state)
         {
-            var operationName = state.operation == ManifestorBuildOperation.Apply ? "Apply" : "Build";
+            var operationName = state.operation switch
+            {
+                ManifestorBuildOperation.Apply => "Apply",
+                ManifestorBuildOperation.PreBuild => "Pre-Build",
+                _ => "Build"
+            };
             var profilePath = AssetDatabase.GUIDToAssetPath(state.profileGuid);
             var profile = AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(profilePath);
             return profile == null

@@ -22,7 +22,7 @@
             <ui:Label text="No manifests available" name="EmptyContentList" style="-unity-text-align: middle-center; color: rgb(173, 173, 173); flex-grow: 1;"/>
         </ui:VisualElement>
         <ui:VisualElement name="RightPanel" class="rhs-pane" style="flex-grow: 1;">
-            <ui:VisualElement name="Content" data-source-type="Manifestor.UI.CustomBuildWindow+CustomBuildData, com.mirovsky.manifestor" data-source-path="activeManifestProfile" style="flex-grow: 1;"/>
+            <ui:ScrollView name="Content" data-source-type="Manifestor.UI.CustomBuildWindow+CustomBuildData, com.mirovsky.manifestor" data-source-path="activeManifestProfile" horizontal-scroller-visibility="Hidden" style="flex-grow: 1;"/>
             <ui:VisualElement name="BuildStepsPanel" style="flex-grow: 0; flex-shrink: 0; padding-top: 6px; padding-right: 8px; padding-bottom: 6px; padding-left: 8px; border-top-width: 1px; border-top-color: rgb(35, 35, 35);">
                 <ui:Label text="Build Pipeline" style="color: rgb(166, 166, 166); margin-bottom: 3px;"/>
                 <Manifestor.UI.BuildStepsList name="BuildStepsList"/>

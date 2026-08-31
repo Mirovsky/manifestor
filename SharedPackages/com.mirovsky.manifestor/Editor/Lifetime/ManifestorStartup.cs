@@ -16,6 +16,11 @@ namespace Manifestor
 
         private static void ApplySavedProfileIfChanged()
         {
+            if (ManifestorBuildAutomation.isBootstrapPending)
+            {
+                return;
+            }
+
             if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
                 QueueStartupApply();

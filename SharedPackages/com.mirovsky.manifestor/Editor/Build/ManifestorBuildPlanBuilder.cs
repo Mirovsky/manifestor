@@ -41,7 +41,7 @@ namespace Manifestor.Build
             var orderedSteps = FilterForOperation(allSteps, operation);
             if (orderedSteps.Count == 0)
             {
-                return ManifestorResult.Error("No custom build steps are configured to run during apply.");
+                return ManifestorResult.Error($"No custom build steps are configured for the {operation} operation.");
             }
 
             try
@@ -54,9 +54,12 @@ namespace Manifestor.Build
                     isActive = true,
                     status = ManifestorBuildPipelineStatus.Waiting,
                     operation = operation,
-                    message = operation == ManifestorBuildOperation.Apply
-                        ? "Manifest apply queued."
-                        : "Custom build queued.",
+                    message = operation switch
+                    {
+                        ManifestorBuildOperation.Apply => "Manifest apply queued.",
+                        ManifestorBuildOperation.PreBuild => "Pre-build queued.",
+                        _ => "Custom build queued."
+                    },
                     profileGuid = profileGuid,
                     profileFingerprint = ManifestorProfileFingerprint.Calculate(profile),
                     buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions),
@@ -75,17 +78,24 @@ namespace Manifestor.Build
             System.Collections.Generic.IEnumerable<Type> orderedSteps,
             ManifestorBuildOperation operation)
         {
-            return operation == ManifestorBuildOperation.Apply
-                ? orderedSteps.Where(RunsDuringApply).ToList()
-                : orderedSteps.ToList();
+            var lastCategory = operation switch
+            {
+                ManifestorBuildOperation.Apply => ManifestorBuildStepCategory.Apply,
+                ManifestorBuildOperation.PreBuild => ManifestorBuildStepCategory.PreBuild,
+                _ => ManifestorBuildStepCategory.Build
+            };
+            return orderedSteps
+                .Where(stepType => ManifestorBuildStepOrderResolver.GetCategory(stepType) <= lastCategory)
+                .ToList();
         }
 
-        private static bool RunsDuringApply(Type stepType)
+        internal static System.Collections.Generic.List<Type> FilterForCategory(
+            System.Collections.Generic.IEnumerable<Type> orderedSteps,
+            ManifestorBuildStepCategory category)
         {
-            return stepType
-                .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
-                .Cast<ManifestorBuildStepAttribute>()
-                .Any(attribute => attribute.runDuringApply);
+            return orderedSteps
+                .Where(stepType => ManifestorBuildStepOrderResolver.GetCategory(stepType) == category)
+                .ToList();
         }
     }
 }

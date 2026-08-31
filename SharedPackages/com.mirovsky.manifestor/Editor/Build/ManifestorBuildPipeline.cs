@@ -18,6 +18,7 @@ namespace Manifestor.Build
     public enum ManifestorBuildOperation
     {
         Apply,
+        PreBuild,
         Build
     }
 

@@ -6,7 +6,7 @@ namespace Manifestor.Build
     using UnityEditor.Build.Reporting;
     using UnityEditor.SceneManagement;
 
-    [ManifestorBuildStep(typeof(ApplyManifestBuildStep), ManifestorBuildStepOrder.After)]
+    [ManifestorBuildStep(ManifestorBuildStepCategory.Build)]
     public sealed class BuildPlayerStep : IManifestorBuildStep
     {
         public ManifestorBuildStepResult Tick(ManifestorBuildContext context)

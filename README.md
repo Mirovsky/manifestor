@@ -5,7 +5,7 @@ Manifestor is a Unity Editor package for defining project package manifests as r
 Manifestor also provides a custom build pipeline and a migration window for keeping package-list assets synchronized with manual changes to `Packages/manifest.json`.
 
 > [!NOTE]
-> Manifestor `0.1.0` is an early public release. Its public API may evolve before `1.0.0`.
+> Manifestor `0.2.0` is an early public release. Its public API may evolve before `1.0.0`.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ Alternatively, install the package from its Git URL through the Unity Package Ma
 3. Enter:
 
    ```text
-   https://github.com/Mirovsky/manifestor.git?path=/SharedPackages/com.mirovsky.manifestor#v0.1.0
+   https://github.com/Mirovsky/manifestor.git?path=/SharedPackages/com.mirovsky.manifestor#v0.2.0
    ```
 
 4. Select **Install**.
@@ -125,15 +125,19 @@ If no custom type is marked, Manifestor creates `ManifestProfileSO`. If more tha
 
 ### Custom build steps
 
-Implement `IManifestorBuildStep` and mark the class with `[ManifestorBuildStep]`. Steps must be concrete, non-generic classes with a public parameterless constructor.
+Implement `IManifestorBuildStep` and mark the class with `[ManifestorBuildStep]`. Every step belongs to one of three categories:
+
+- `Apply` updates the selected manifest and Unity Build Profile.
+- `PreBuild` validates or prepares content before a player build.
+- `Build` performs the player build or work that depends on its output.
+
+Steps must be concrete, non-generic classes with a public parameterless constructor.
 
 ```csharp
 using Manifestor.Build;
 
-[ManifestorBuildStep(
-    typeof(ApplyManifestBuildStep),
-    ManifestorBuildStepOrder.Before,
-    runDuringApply = true)]
+[ManifestorBuildStep(ManifestorBuildStepCategory.PreBuild)]
+[ManifestorBuildStepOrder(typeof(BuildPlayerStep), ManifestorBuildStepOrder.Before)]
 public sealed class ValidateContentStep : IManifestorBuildStep
 {
     public ManifestorBuildStepResult Tick(ManifestorBuildContext context)
@@ -149,12 +153,18 @@ public sealed class ValidateContentStep : IManifestorBuildStep
 }
 ```
 
-The attribute can order a step `Before` or `After` another step type. Constraints are combined across all discovered steps; dependency cycles cause the pipeline to reject the operation. Without a constraint, steps are ordered deterministically by their assembly-qualified type names.
+Use one or more `[ManifestorBuildStepOrder]` attributes to order a step `Before` or `After` another step type. Constraints are combined across all discovered steps; dependency cycles and constraints that contradict category order cause the pipeline to reject the operation. Without a constraint, steps within a category are ordered deterministically by their assembly-qualified type names.
 
-Set `runDuringApply = true` for steps that should run when **Apply Manifest** is used. A full build runs every discovered step. The built-in pipeline contains:
+Category order is always Apply, PreBuild, then Build. Local operations include categories cumulatively:
+
+- `Apply` runs Apply steps only.
+- `Build` runs every category.
+- Unity Build Automation runs PreBuild steps synchronously from its pre-export hook after a separate bootstrap process has prepared packages and scripting defines.
+
+The built-in pipeline contains:
 
 1. `ApplyManifestBuildStep`, which applies and resolves the selected profile.
-2. `BuildPlayerStep`, which runs after the apply step and invokes Unity's player build.
+2. `BuildPlayerStep`, a Build-category step that invokes Unity's player build.
 
 `ManifestorBuildContext` provides the selected `profile` and a mutable Unity `BuildPlayerOptions` value. A step can replace `context.buildPlayerOptions` to configure scenes, output location, target, subtarget, build flags, asset-bundle manifest, or extra scripting defines for later steps. Changes are retained when a step succeeds or waits. The final player step fills unset target, target group, subtarget, scenes, and location from the active build profile and Unity's saved build settings.
 
@@ -193,7 +203,7 @@ Return one of:
 
 ### Starting the pipeline from code
 
-You can start an apply or build from Editor code:
+You can start an apply or full local build from Editor code:
 
 ```csharp
 using Manifestor;
@@ -213,6 +223,82 @@ if (!buildResult.success)
 ```
 
 Starting the pipeline queues the work; a successful `ManifestorResult` means the operation started, not that every step has finished. Subscribe to `ManifestorBuildPipeline.completed` to observe its final status.
+
+### Unity Build Automation
+
+Unity Build Automation's pre-export method runs after Unity has compiled scripts. Changing `Packages/manifest.json` there is too late for the current build, so Manifestor uses two Unity processes:
+
+1. A UBA pre-build shell script launches Unity in batch mode and calls `ManifestorBuildAutomation.Bootstrap`.
+2. Bootstrap reads `MANIFESTOR_PROFILE_PATH`, writes the selected package manifest and scripting defines, records a receipt under `Library/Manifestor`, and exits without resolving packages or switching targets.
+3. UBA starts its normal Unity process, which resolves and compiles against the selected profile.
+4. UBA calls a project forwarding method that invokes `ManifestorBuildAutomation.PreExport`. Manifestor verifies the receipt, manifest, defines, and active target; activates the Unity Build Profile; and runs PreBuild steps synchronously.
+
+Commit a pre-build script such as `BuildAutomation/manifestor-pre-build.sh` with Unix line endings:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+: "${UNITY_EXE:?UNITY_EXE is required}"
+: "${PROJECT_DIRECTORY:?PROJECT_DIRECTORY is required}"
+: "${MANIFESTOR_PROFILE_PATH:?MANIFESTOR_PROFILE_PATH is required}"
+
+unity_exe="$UNITY_EXE"
+project_directory="$PROJECT_DIRECTORY"
+if [[ "${BUILDER_OS:-}" == "WINDOWS" ]]; then
+    unity_exe="$(cygpath -wa "$UNITY_EXE")"
+    project_directory="$(cygpath -wa "$PROJECT_DIRECTORY")"
+fi
+
+"$unity_exe" \
+    -batchmode \
+    -nographics \
+    -quit \
+    -projectPath "$project_directory" \
+    -executeMethod Manifestor.Build.ManifestorBuildAutomation.Bootstrap \
+    -logFile -
+```
+
+Because Manifestor's assembly has **Auto Referenced** disabled, put the forwarding hook in an Editor assembly that explicitly references the package. For example, create `Assets/Editor/Project.ManifestorBuildAutomation.asmdef`:
+
+```json
+{
+  "name": "Project.ManifestorBuildAutomation",
+  "references": [
+    "com.mirovsky.manifestor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ]
+}
+```
+
+Add `Assets/Editor/ManifestorBuildAutomationHook.cs`:
+
+```csharp
+namespace ProjectBuildAutomation
+{
+    using Manifestor.Build;
+
+    public static class ManifestorBuildAutomationHook
+    {
+        public static void PreExport()
+        {
+            ManifestorBuildAutomation.PreExport();
+        }
+    }
+}
+```
+
+Configure the UBA target's advanced settings as follows:
+
+- Environment variable: `MANIFESTOR_PROFILE_PATH=Assets/Path/To/ManifestProfile.asset`.
+- Pre-Build Script: the repository-relative path to `manifestor-pre-build.sh`.
+- Pre-Export Method: `ProjectBuildAutomation.ManifestorBuildAutomationHook.PreExport`.
+
+The selected path must be a committed `.asset` under `Assets`, and its Unity Build Profile target must match the UBA target. Manifestor must be present in the checkout's initial `Packages/manifest.json` and remain in the generated profile manifest unless it is embedded under `Packages/com.mirovsky.manifestor`.
+
+PreBuild steps share the local `IManifestorBuildStep` API and ordering rules, but UBA invokes each step once. Returning `Waiting`, `Failed`, or `Cancelled`, or throwing an exception, fails the UBA build. UBA owns the player build, so Build-category steps such as `BuildPlayerStep` are never invoked by pre-export.
 
 ## Development and support
 
