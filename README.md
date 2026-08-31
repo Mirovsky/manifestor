@@ -4,6 +4,12 @@ Manifestor is a Unity Editor package for defining project package manifests as r
 
 Manifestor also provides a custom build pipeline and a migration window for keeping package-list assets synchronized with manual changes to `Packages/manifest.json`.
 
+### Build entry points
+
+- **CustomBuild / Unity Editor:** `ManifestorUnityEditorPipeline` powers the Custom Build window and queued Editor API.
+- **Terminal:** `ManifestorHeadlessBuild.BuildFromCommandLine` runs the same Standard plan in batch mode.
+- **Unity Build Automation:** `ManifestorUnityBuildAutomation.Apply`, `.PreBuild`, and `.PostBuild` run the UBA-enabled phases around UBA's player build.
+
 > [!NOTE]
 > Manifestor `0.2.0` is an early public release. Its public API may evolve before `1.0.0`.
 
@@ -129,15 +135,16 @@ Implement `IManifestorBuildStep` and mark the class with `[ManifestorBuildStep]`
 
 - `Apply` updates the selected manifest and Unity Build Profile.
 - `PreBuild` validates or prepares content before a player build.
-- `Build` performs the player build or work that depends on its output.
+- `PostBuild` consumes, packages, or publishes the completed player build.
 
 Steps must be concrete, non-generic classes with a public parameterless constructor.
+
+Steps run in both Standard and UBA pipelines by default. Pass `ManifestorBuildStepTargets.Standard` or `ManifestorBuildStepTargets.UnityBuildAutomation` as the attribute's second argument to restrict participation.
 
 ```csharp
 using Manifestor.Build;
 
 [ManifestorBuildStep(ManifestorBuildStepCategory.PreBuild)]
-[ManifestorBuildStepOrder(typeof(BuildPlayerStep), ManifestorBuildStepOrder.Before)]
 public sealed class ValidateContentStep : IManifestorBuildStep
 {
     public ManifestorBuildStepResult Tick(ManifestorBuildContext context)
@@ -155,18 +162,15 @@ public sealed class ValidateContentStep : IManifestorBuildStep
 
 Use one or more `[ManifestorBuildStepOrder]` attributes to order a step `Before` or `After` another step type. Constraints are combined across all discovered steps; dependency cycles and constraints that contradict category order cause the pipeline to reject the operation. Without a constraint, steps within a category are ordered deterministically by their assembly-qualified type names.
 
-Category order is always Apply, PreBuild, then Build. Local operations include categories cumulatively:
+Category order is always Apply, PreBuild, then PostBuild. Full builds execute the Unity player build between PreBuild and PostBuild:
 
 - `Apply` runs Apply steps only.
-- `Build` runs every category.
-- Unity Build Automation runs PreBuild steps synchronously from its pre-export hook after a separate bootstrap process has prepared packages and scripting defines.
+- `Build` runs every category and the player build.
+- Unity Build Automation runs UBA-enabled Apply, PreBuild, and PostBuild steps around its externally owned player build.
 
-The built-in pipeline contains:
+The built-in Apply step applies and resolves the selected profile. After custom PreBuild steps, a fixed shared preparation action finalizes the target, options, and scenes. Player building is a fixed core action rather than a discoverable step.
 
-1. `ApplyManifestBuildStep`, which applies and resolves the selected profile.
-2. `BuildPlayerStep`, a Build-category step that invokes Unity's player build.
-
-`ManifestorBuildContext` provides the selected `profile` and a mutable Unity `BuildPlayerOptions` value. A step can replace `context.buildPlayerOptions` to configure scenes, output location, target, subtarget, build flags, asset-bundle manifest, or extra scripting defines for later steps. Changes are retained when a step succeeds or waits. The final player step fills unset target, target group, subtarget, scenes, and location from the active build profile and Unity's saved build settings.
+`ManifestorBuildContext` provides the selected `profile` and a mutable Unity `BuildPlayerOptions` value. A step can replace `context.buildPlayerOptions` to configure scenes, output location, target, subtarget, build flags, asset-bundle manifest, or extra scripting defines for later steps. Changes are retained when a step succeeds or waits. The core player builder fills unset target, target group, subtarget, scenes, and location from the active build profile and Unity's saved build settings.
 
 Because `BuildPlayerOptions` is a struct, copy it, modify the copy, and assign it back:
 
@@ -181,10 +185,10 @@ Steps can also exchange string values through build-scoped user data. Values sur
 ```csharp
 private const string PreviousSettingKey = "example.previous-setting";
 
-// In a step ordered before BuildPlayerStep:
+// In a PreBuild step:
 context.SetUserData(PreviousSettingKey, ReadCurrentSetting());
 
-// In a step ordered after BuildPlayerStep:
+// In a PostBuild step:
 if (context.TryGetUserData(PreviousSettingKey, out var previousSetting))
 {
     RestoreSetting(previousSetting);
@@ -210,8 +214,8 @@ using Manifestor;
 using Manifestor.Build;
 using UnityEditor;
 
-ManifestorResult applyResult = ManifestorBuildPipeline.Apply(profile);
-ManifestorResult buildResult = ManifestorBuildPipeline.Build(
+ManifestorResult applyResult = ManifestorUnityEditorPipeline.Apply(profile);
+ManifestorResult buildResult = ManifestorUnityEditorPipeline.Build(
     profile,
     outputFolder,
     BuildOptions.CleanBuildCache);
@@ -222,16 +226,35 @@ if (!buildResult.success)
 }
 ```
 
-Starting the pipeline queues the work; a successful `ManifestorResult` means the operation started, not that every step has finished. Subscribe to `ManifestorBuildPipeline.completed` to observe its final status.
+Starting the pipeline queues the work; a successful `ManifestorResult` means the operation started, not that every step has finished. Subscribe to `ManifestorUnityEditorPipeline.completed` to observe its final status.
+
+### Headless builds
+
+Run the same Standard pipeline from a terminal with `ManifestorHeadlessBuild.BuildFromCommandLine`. Do not pass Unity's `-quit` option; Manifestor exits after the resumable build completes.
+
+```bash
+Unity \
+    -batchmode \
+    -nographics \
+    -projectPath "$PROJECT_DIRECTORY" \
+    -executeMethod Manifestor.Build.ManifestorHeadlessBuild.BuildFromCommandLine \
+    -manifestorProfile Assets/Path/To/ManifestProfile.asset \
+    -manifestorOutput Builds/Player \
+    -manifestorBuildOptions CleanBuildCache \
+    -logFile -
+```
+
+Exit code `0` means success, `1` means invalid input or failure, and `2` means cancellation.
 
 ### Unity Build Automation
 
 Unity Build Automation's pre-export method runs after Unity has compiled scripts. Changing `Packages/manifest.json` there is too late for the current build, so Manifestor uses two Unity processes:
 
-1. A UBA pre-build shell script launches Unity in batch mode and calls `ManifestorBuildAutomation.Bootstrap`.
-2. Bootstrap reads `MANIFESTOR_PROFILE_PATH`, writes the selected package manifest and scripting defines, records a receipt under `Library/Manifestor`, and exits without resolving packages or switching targets.
+1. A UBA pre-build shell script launches Unity in batch mode and calls `ManifestorUnityBuildAutomation.Apply`.
+2. Apply runs all UBA-enabled Apply steps through the resumable shared pipeline and records a receipt under `Library/Manifestor`.
 3. UBA starts its normal Unity process, which resolves and compiles against the selected profile.
-4. UBA calls a project forwarding method that invokes `ManifestorBuildAutomation.PreExport`. Manifestor verifies the receipt, manifest, defines, and active target; activates the Unity Build Profile; and runs PreBuild steps synchronously.
+4. UBA calls project forwarding methods that invoke `ManifestorUnityBuildAutomation.PreBuild` from Pre-Export and `PostBuild` from Post-Export.
+5. Pre-Export runs the shared player-build preparation and temporarily publishes its finalized scene list to Unity Editor Build Settings for UBA. Post-Export restores the preceding scene settings.
 
 Commit a pre-build script such as `BuildAutomation/manifestor-pre-build.sh` with Unix line endings:
 
@@ -253,17 +276,16 @@ fi
 "$unity_exe" \
     -batchmode \
     -nographics \
-    -quit \
     -projectPath "$project_directory" \
-    -executeMethod Manifestor.Build.ManifestorBuildAutomation.Bootstrap \
+    -executeMethod Manifestor.Build.ManifestorUnityBuildAutomation.Apply \
     -logFile -
 ```
 
-Because Manifestor's assembly has **Auto Referenced** disabled, put the forwarding hook in an Editor assembly that explicitly references the package. For example, create `Assets/Editor/Project.ManifestorBuildAutomation.asmdef`:
+Because Manifestor's assembly has **Auto Referenced** disabled, put the forwarding hook in an Editor assembly that explicitly references the package. For example, create `Assets/Editor/Project.ManifestorUnityBuildAutomation.asmdef`:
 
 ```json
 {
-  "name": "Project.ManifestorBuildAutomation",
+  "name": "Project.ManifestorUnityBuildAutomation",
   "references": [
     "com.mirovsky.manifestor"
   ],
@@ -273,18 +295,23 @@ Because Manifestor's assembly has **Auto Referenced** disabled, put the forwardi
 }
 ```
 
-Add `Assets/Editor/ManifestorBuildAutomationHook.cs`:
+Add `Assets/Editor/ManifestorUnityBuildAutomationHook.cs`:
 
 ```csharp
 namespace ProjectBuildAutomation
 {
     using Manifestor.Build;
 
-    public static class ManifestorBuildAutomationHook
+    public static class ManifestorUnityBuildAutomationHook
     {
         public static void PreExport()
         {
-            ManifestorBuildAutomation.PreExport();
+            ManifestorUnityBuildAutomation.PreBuild();
+        }
+
+        public static void PostExport(string exportPath)
+        {
+            ManifestorUnityBuildAutomation.PostBuild(exportPath);
         }
     }
 }
@@ -294,11 +321,12 @@ Configure the UBA target's advanced settings as follows:
 
 - Environment variable: `MANIFESTOR_PROFILE_PATH=Assets/Path/To/ManifestProfile.asset`.
 - Pre-Build Script: the repository-relative path to `manifestor-pre-build.sh`.
-- Pre-Export Method: `ProjectBuildAutomation.ManifestorBuildAutomationHook.PreExport`.
+- Pre-Export Method: `ProjectBuildAutomation.ManifestorUnityBuildAutomationHook.PreExport`.
+- Post-Export Method: `ProjectBuildAutomation.ManifestorUnityBuildAutomationHook.PostExport`.
 
 The selected path must be a committed `.asset` under `Assets`, and its Unity Build Profile target must match the UBA target. Manifestor must be present in the checkout's initial `Packages/manifest.json` and remain in the generated profile manifest unless it is embedded under `Packages/com.mirovsky.manifestor`.
 
-PreBuild steps share the local `IManifestorBuildStep` API and ordering rules, but UBA invokes each step once. Returning `Waiting`, `Failed`, or `Cancelled`, or throwing an exception, fails the UBA build. UBA owns the player build, so Build-category steps such as `BuildPlayerStep` are never invoked by pre-export.
+Steps default to both Standard and UBA execution. Pass `ManifestorBuildStepTargets.Standard` to `[ManifestorBuildStep]` to exclude a step from UBA. `Waiting` is resumable during Apply, but returning it from synchronous PreBuild or PostBuild hooks fails the UBA build. A PreBuild step can set `context.buildPlayerOptions.scenes`; when it leaves scenes null, Manifestor uses the enabled Editor Build Settings scenes. Configure UBA to use project build-settings scenes so it does not override Manifestor's finalized list after Pre-Export.
 
 ## Development and support
 

@@ -14,7 +14,7 @@ namespace Manifestor
     {
         private static ListRequest _resolveRequest;
 
-        public static ManifestorBuildStepResult Tick(ManifestorBuildContext context)
+        public static ManifestorBuildStepResult Apply(ManifestorBuildContext context)
         {
             if (context?.profile == null)
             {

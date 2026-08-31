@@ -10,7 +10,7 @@ namespace Manifestor.Build
                 return ManifestorBuildStepResult.Failed("Manifest profile is required.");
             }
 
-            return ManifestorApplicator.Tick(context);
+            return ManifestorApplicator.Apply(context);
         }
 
         public ManifestorBuildStepResult HandleInterruption(ManifestorBuildContext context)

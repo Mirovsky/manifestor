@@ -16,7 +16,7 @@ namespace Manifestor
 
         private static void ApplySavedProfileIfChanged()
         {
-            if (ManifestorBuildAutomation.isBootstrapPending)
+            if (ManifestorUnityBuildAutomation.isApplyPending)
             {
                 return;
             }
@@ -27,7 +27,7 @@ namespace Manifestor
                 return;
             }
 
-            if (ManifestorBuildPipeline.isActive)
+            if (ManifestorUnityEditorPipeline.isActive)
             {
                 return;
             }
@@ -68,7 +68,7 @@ namespace Manifestor
                 return;
             }
 
-            var result = ManifestorBuildPipeline.Apply(profile);
+            var result = ManifestorUnityEditorPipeline.Apply(profile);
             if (!result.success)
             {
                 Debug.LogWarning($"Manifestor startup apply skipped: {result.message}");

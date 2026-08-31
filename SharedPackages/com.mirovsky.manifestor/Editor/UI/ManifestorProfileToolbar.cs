@@ -17,8 +17,8 @@ namespace Manifestor.UI
 
         static ManifestorProfileToolbar()
         {
-            ManifestorBuildPipeline.completed -= HandlePipelineCompleted;
-            ManifestorBuildPipeline.completed += HandlePipelineCompleted;
+            ManifestorUnityEditorPipeline.completed -= HandlePipelineCompleted;
+            ManifestorUnityEditorPipeline.completed += HandlePipelineCompleted;
             EditorApplication.projectChanged -= Refresh;
             EditorApplication.projectChanged += Refresh;
             ObjectChangeEvents.changesPublished -= HandleObjectChanges;
@@ -125,7 +125,7 @@ namespace Manifestor.UI
                 return;
             }
 
-            var result = ManifestorBuildPipeline.Apply(_selectedProfile);
+            var result = ManifestorUnityEditorPipeline.Apply(_selectedProfile);
             if (!result.success)
             {
                 Debug.LogError(result.message);

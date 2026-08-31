@@ -137,23 +137,13 @@ namespace Manifestor.Build
                 return;
             }
 
-            if (state.orderedStepTypeNames == null || state.nextStepIndex >= state.orderedStepTypeNames.Count)
-            {
-                Complete(
-                    state,
-                    ManifestorBuildPipelineStatus.Succeeded,
-                    state.operation switch
-                    {
-                        ManifestorBuildOperation.Apply => "Manifest apply completed successfully.",
-                        ManifestorBuildOperation.PreBuild => "Pre-build completed successfully.",
-                        _ => "Custom build completed successfully."
-                    });
-                return;
-            }
-
-            var stepTypeName = state.orderedStepTypeNames[state.nextStepIndex];
-            var stepType = Type.GetType(stepTypeName);
-            if (stepType == null)
+            var hasRemainingSteps = state.orderedStepTypeNames != null &&
+                                    state.nextStepIndex < state.orderedStepTypeNames.Count;
+            var stepTypeName = hasRemainingSteps
+                ? state.orderedStepTypeNames[state.nextStepIndex]
+                : string.Empty;
+            var stepType = hasRemainingSteps ? Type.GetType(stepTypeName) : null;
+            if (hasRemainingSteps && stepType == null)
             {
                 Complete(state, ManifestorBuildPipelineStatus.Failed, $"Build step type '{stepTypeName}' could not be loaded.");
                 return;
@@ -181,7 +171,24 @@ namespace Manifestor.Build
             catch (Exception exception)
             {
                 Complete(state, ManifestorBuildPipelineStatus.Failed,
-                    $"Failed to validate manifest profile before step '{stepType.FullName}': {exception.Message}");
+                    $"Failed to validate manifest profile before the next build action: {exception.Message}");
+                return;
+            }
+
+            if (ShouldBuildPlayer(state, stepType))
+            {
+                RunPlayerBuild(state, profile);
+                return;
+            }
+
+            if (!hasRemainingSteps)
+            {
+                Complete(
+                    state,
+                    ManifestorBuildPipelineStatus.Succeeded,
+                    state.operation == ManifestorBuildOperation.Apply
+                        ? "Manifest apply completed successfully."
+                        : "Custom build completed successfully.");
                 return;
             }
 
@@ -211,18 +218,7 @@ namespace Manifestor.Build
                     ManifestorBuildPipelineStateStore.Save(state);
                 });
 
-            ManifestorBuildStepResult result;
-            try
-            {
-                var step = (IManifestorBuildStep)Activator.CreateInstance(stepType);
-                result = step.Tick(context);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogException(exception);
-                result = ManifestorBuildStepResult.Failed(
-                    $"Build step '{stepType.FullName}' threw an exception: {exception.Message}");
-            }
+            var result = ManifestorBuildStepExecutor.Execute(stepType, context);
 
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             state.stepState = context.persistedState;
@@ -268,6 +264,72 @@ namespace Manifestor.Build
             ManifestorBuildProgress.Report(state);
         }
 
+        private static bool ShouldBuildPlayer(ManifestorBuildPipelineState state, Type nextStepType)
+        {
+            return state.operation == ManifestorBuildOperation.Build &&
+                   !state.playerBuildCompleted &&
+                   (nextStepType == null ||
+                    ManifestorBuildStepOrderResolver.GetCategory(nextStepType) == ManifestorBuildStepCategory.PostBuild);
+        }
+
+        private void RunPlayerBuild(ManifestorBuildPipelineState state, ManifestProfileSO profile)
+        {
+            state.status = ManifestorBuildPipelineStatus.Running;
+            state.currentStepTypeName = typeof(ManifestorPlayerBuilder).AssemblyQualifiedName;
+            state.message = "Building the Unity player.";
+            ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Report(state);
+
+            var context = new ManifestorBuildContext(
+                profile,
+                state.operation,
+                state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
+                state.cancellationRequested,
+                string.Empty,
+                null,
+                state.userData?.ToDictionary(),
+                userData =>
+                {
+                    state.userData = SerializableBuildUserData.From(userData);
+                    ManifestorBuildPipelineStateStore.Save(state);
+                });
+            var preparationResult = ManifestorPlayerBuildPreparation.Prepare(context, state.targets);
+            state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
+            if (!preparationResult.success)
+            {
+                Complete(
+                    state,
+                    preparationResult.outcome == ManifestorBuildStepOutcome.Cancelled
+                        ? ManifestorBuildPipelineStatus.Cancelled
+                        : ManifestorBuildPipelineStatus.Failed,
+                    string.IsNullOrEmpty(preparationResult.message)
+                        ? "Player build preparation failed."
+                        : preparationResult.message);
+                return;
+            }
+
+            var result = ManifestorPlayerBuilder.Build(context);
+            state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
+            if (!result.success)
+            {
+                Complete(
+                    state,
+                    result.outcome == ManifestorBuildStepOutcome.Cancelled
+                        ? ManifestorBuildPipelineStatus.Cancelled
+                        : ManifestorBuildPipelineStatus.Failed,
+                    string.IsNullOrEmpty(result.message) ? "The Unity player build failed." : result.message);
+                return;
+            }
+
+            state.playerBuildCompleted = true;
+            state.currentStepTypeName = string.Empty;
+            state.status = ManifestorBuildPipelineStatus.Waiting;
+            state.message = result.message;
+            state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
+            ManifestorBuildPipelineStateStore.Save(state);
+            ManifestorBuildProgress.Report(state);
+        }
+
         private void Complete(
             ManifestorBuildPipelineState state,
             ManifestorBuildPipelineStatus terminalStatus,
@@ -278,7 +340,6 @@ namespace Manifestor.Build
             state.message = message;
             state.currentStepTypeName = string.Empty;
             state.stepState = string.Empty;
-            state.userData = new SerializableBuildUserData();
             ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Finish(state, terminalStatus);
             ManifestorBuildScheduler.Stop();
@@ -297,6 +358,9 @@ namespace Manifestor.Build
             }
 
             _completed?.Invoke(state.operation, terminalStatus);
+
+            state.userData = new SerializableBuildUserData();
+            ManifestorBuildPipelineStateStore.Save(state);
         }
 
         private static string CreateStepMessage(Type stepType, string message)
@@ -309,7 +373,7 @@ namespace Manifestor.Build
 
     internal static class ManifestorBuildProgress
     {
-        private const string ProgressIdKey = "Manifestor.CustomBuildPipeline.ProgressId";
+        private const string ProgressIdKey = "Manifestor.UnityEditorPipeline.ProgressId";
         private const int InvalidProgressId = -1;
 
         public static void Restore(ManifestorBuildPipelineState state)
@@ -428,19 +492,26 @@ namespace Manifestor.Build
 
         private static bool RequestCancellation()
         {
-            return ManifestorBuildPipeline.Cancel().success;
+            return ManifestorUnityEditorPipeline.Cancel().success;
         }
 
         private static void Report(int progressId, ManifestorBuildPipelineState state)
         {
             var totalSteps = GetTotalSteps(state);
-            var completedSteps = Math.Max(0, Math.Min(state.nextStepIndex, totalSteps));
+            var completedActions = state.nextStepIndex + (state.playerBuildCompleted ? 1 : 0);
+            var completedSteps = Math.Max(0, Math.Min(completedActions, totalSteps));
             Progress.Report(progressId, completedSteps, totalSteps, state.message ?? string.Empty);
         }
 
         private static int GetTotalSteps(ManifestorBuildPipelineState state)
         {
-            return Math.Max(1, state?.orderedStepTypeNames?.Count ?? 0);
+            var stepCount = state?.orderedStepTypeNames?.Count ?? 0;
+            if (state?.operation == ManifestorBuildOperation.Build)
+            {
+                stepCount++;
+            }
+
+            return Math.Max(1, stepCount);
         }
 
         private static string GetTitle(ManifestorBuildPipelineState state)
@@ -448,7 +519,6 @@ namespace Manifestor.Build
             var operationName = state.operation switch
             {
                 ManifestorBuildOperation.Apply => "Apply",
-                ManifestorBuildOperation.PreBuild => "Pre-Build",
                 _ => "Build"
             };
             var profilePath = AssetDatabase.GUIDToAssetPath(state.profileGuid);

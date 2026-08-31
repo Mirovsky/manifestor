@@ -15,7 +15,15 @@ namespace Manifestor.Build
     {
         Apply,
         PreBuild,
-        Build
+        PostBuild
+    }
+
+    [Flags]
+    public enum ManifestorBuildStepTargets
+    {
+        Standard = 1,
+        UnityBuildAutomation = 2,
+        All = Standard | UnityBuildAutomation
     }
 
     public enum ManifestorBuildStepOutcome
@@ -30,10 +38,14 @@ namespace Manifestor.Build
     public sealed class ManifestorBuildStepAttribute : Attribute
     {
         public ManifestorBuildStepCategory category { get; }
+        public ManifestorBuildStepTargets targets { get; }
 
-        public ManifestorBuildStepAttribute(ManifestorBuildStepCategory category)
+        public ManifestorBuildStepAttribute(
+            ManifestorBuildStepCategory category,
+            ManifestorBuildStepTargets targets = ManifestorBuildStepTargets.All)
         {
             this.category = category;
+            this.targets = targets;
         }
     }
 
@@ -71,25 +83,7 @@ namespace Manifestor.Build
         public bool cancellationRequested { get; }
         public string persistedState { get; private set; }
         public BuildPlayerOptions buildPlayerOptions { get; set; }
-
-        internal ManifestorBuildContext(
-            ManifestProfileSO profile,
-            ManifestorBuildOperation operation,
-            BuildPlayerOptions buildPlayerOptions,
-            bool cancellationRequested,
-            string persistedState,
-            Action<string, BuildPlayerOptions> saveCheckpoint)
-            : this(
-                profile,
-                operation,
-                buildPlayerOptions,
-                cancellationRequested,
-                persistedState,
-                saveCheckpoint,
-                null,
-                null)
-        {
-        }
+        internal IReadOnlyDictionary<string, string> userData => _userData;
 
         internal ManifestorBuildContext(
             ManifestProfileSO profile,
@@ -98,8 +92,8 @@ namespace Manifestor.Build
             bool cancellationRequested,
             string persistedState,
             Action<string, BuildPlayerOptions> saveCheckpoint,
-            IReadOnlyDictionary<string, string> userData,
-            Action<IReadOnlyDictionary<string, string>> saveUserData)
+            IReadOnlyDictionary<string, string> userData = null,
+            Action<IReadOnlyDictionary<string, string>> saveUserData = null)
         {
             this.profile = profile;
             this.operation = operation;
@@ -201,8 +195,17 @@ namespace Manifestor.Build
     {
         public static bool TryResolve(out List<Type> orderedSteps, out string error)
         {
+            return TryResolve(ManifestorBuildStepTargets.Standard, out orderedSteps, out error);
+        }
+
+        public static bool TryResolve(
+            ManifestorBuildStepTargets targets,
+            out List<Type> orderedSteps,
+            out string error)
+        {
             return TryResolve(
                 TypeCache.GetTypesWithAttribute<ManifestorBuildStepAttribute>(),
+                targets,
                 out orderedSteps,
                 out error);
         }
@@ -212,11 +215,21 @@ namespace Manifestor.Build
             out List<Type> orderedSteps,
             out string error)
         {
+            return TryResolve(discoveredTypes, ManifestorBuildStepTargets.Standard, out orderedSteps, out error);
+        }
+
+        private static bool TryResolve(
+            IEnumerable<Type> discoveredTypes,
+            ManifestorBuildStepTargets targets,
+            out List<Type> orderedSteps,
+            out string error)
+        {
             orderedSteps = new List<Type>();
             error = string.Empty;
 
             var stepTypes = discoveredTypes
                 .Distinct()
+                .Where(type => (GetTargets(type) & targets) != 0)
                 .OrderBy(type => type.AssemblyQualifiedName, StringComparer.Ordinal)
                 .ToList();
             if (stepTypes.Count == 0)
@@ -304,6 +317,15 @@ namespace Manifestor.Build
                 .category;
         }
 
+        private static ManifestorBuildStepTargets GetTargets(Type stepType)
+        {
+            return stepType
+                .GetCustomAttributes(typeof(ManifestorBuildStepAttribute), false)
+                .Cast<ManifestorBuildStepAttribute>()
+                .Single()
+                .targets;
+        }
+
         private static bool TryValidateStepType(Type stepType, out string error)
         {
             if (!stepType.IsClass || stepType.IsAbstract || stepType.ContainsGenericParameters)
@@ -328,6 +350,13 @@ namespace Manifestor.Build
             if (!Enum.IsDefined(typeof(ManifestorBuildStepCategory), category))
             {
                 error = $"Custom build step '{stepType.FullName}' has an invalid category '{category}'.";
+                return false;
+            }
+
+            var targets = GetTargets(stepType);
+            if (targets == 0 || (targets & ~ManifestorBuildStepTargets.All) != 0)
+            {
+                error = $"Custom build step '{stepType.FullName}' has invalid targets '{targets}'.";
                 return false;
             }
 

@@ -192,7 +192,7 @@ namespace Manifestor.Editor.Tests
         }
 
         [Test]
-        public void BuildPlayerStep_WhenApplyInvariantIsBroken_FailsWithoutSwitchingTarget()
+        public void PlayerBuildPreparation_WhenApplyInvariantIsBroken_FailsWithoutSwitchingTarget()
         {
             _buildState.activeBuildProfile = _requestedBuildProfile;
             _buildState.activeBuildTarget = BuildTarget.Android;
@@ -204,7 +204,9 @@ namespace Manifestor.Editor.Tests
                 string.Empty,
                 null);
 
-            var result = new BuildPlayerStep().Tick(context);
+            var result = ManifestorPlayerBuildPreparation.Prepare(
+                context,
+                ManifestorBuildStepTargets.Standard);
 
             Assert.That(result.outcome, Is.EqualTo(ManifestorBuildStepOutcome.Failed));
             StringAssert.Contains(nameof(BuildTarget.StandaloneWindows64), result.message);

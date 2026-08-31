@@ -28,6 +28,8 @@ For embedded development, copy this directory to `Packages/com.mirovsky.manifest
 
 Manifestor replaces the managed dependencies, scoped registries, testables, and target scripting defines with the selected profile's configuration. If application fails, it attempts to restore the previous manifest, active Build Profile, and define symbols.
 
+Build entry points are `ManifestorUnityEditorPipeline` for CustomBuild and Editor code, `ManifestorHeadlessBuild.BuildFromCommandLine` for terminal builds, and `ManifestorUnityBuildAutomation` for UBA Apply/PreBuild/PostBuild phases.
+
 When `Packages/manifest.json` changes outside Manifestor, use **Tools > Manifestor > Manifest Migration** to synchronize those changes back into package-list assets.
 
 ## Extending Manifestor
@@ -35,12 +37,12 @@ When `Packages/manifest.json` changes outside Manifestor, use **Tools > Manifest
 The package assembly has **Auto Referenced** disabled. Put extensions in an Editor assembly and explicitly reference `com.mirovsky.manifestor`.
 
 - Subclass `ManifestProfileSO` and mark one concrete type with `[CustomManifestProfile]` to add project-specific settings.
-- Implement `IManifestorBuildStep`, assign an Apply, PreBuild, or Build category with `[ManifestorBuildStep]`, and add optional `[ManifestorBuildStepOrder]` constraints.
-- Use `ManifestorBuildPipeline.Apply` or `ManifestorBuildPipeline.Build` for local queued operations and subscribe to `ManifestorBuildPipeline.completed` for the final result.
+- Implement `IManifestorBuildStep`, assign an Apply, PreBuild, or PostBuild category with `[ManifestorBuildStep]`, and add optional `[ManifestorBuildStepOrder]` constraints.
+- Use `ManifestorUnityEditorPipeline.Apply` or `.Build` for queued Editor operations, or `ManifestorHeadlessBuild.BuildFromCommandLine` from a terminal.
 
 ## Unity Build Automation
 
-Unity Build Automation must update package and compile-time define state before its normal Unity process starts. Configure a repository pre-build shell script to launch Unity with `Manifestor.Build.ManifestorBuildAutomation.Bootstrap`, and set `MANIFESTOR_PROFILE_PATH` to the profile asset path. Configure an `Assets/Editor` forwarding method to call `ManifestorBuildAutomation.PreExport` after UBA compilation. The pre-export call verifies the bootstrap state, activates the Unity Build Profile, and runs PreBuild-category steps synchronously.
+Unity Build Automation must update package and compile-time define state before its normal Unity process starts. Configure a repository pre-build shell script to launch Unity with `Manifestor.Build.ManifestorUnityBuildAutomation.Apply`, and set `MANIFESTOR_PROFILE_PATH` to the profile asset path. Forward UBA's pre-export and post-export hooks to `ManifestorUnityBuildAutomation.PreBuild` and `.PostBuild`. Pre-Export runs the same player-build preparation as Standard builds and temporarily applies its finalized scenes to Editor Build Settings; Post-Export restores the preceding scene list. Configure UBA to use project build-settings scenes. Steps can opt out of UBA with `ManifestorBuildStepTargets.Standard`.
 
 See the repository README for complete shell, assembly definition, forwarding-hook, and UBA configuration examples.
 

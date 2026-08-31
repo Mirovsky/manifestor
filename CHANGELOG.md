@@ -4,9 +4,11 @@ All notable changes to Manifestor are documented in this file.
 
 ## [0.2.0] - 2026-08-31
 
-- Split custom build steps into explicit Apply, PreBuild, and Build categories.
-- Added a two-process Unity Build Automation integration that materializes packages and defines before UBA starts Unity, then verifies state and runs synchronous PreBuild steps at pre-export.
-- Added `ManifestorBuildAutomation.Bootstrap` and `ManifestorBuildAutomation.PreExport` automation entry points.
+- Split custom build steps into explicit Apply, PreBuild, and PostBuild categories around a shared player-build action.
+- Added unified `ManifestorUnityEditorPipeline`, `ManifestorHeadlessBuild`, and `ManifestorUnityBuildAutomation` entry points.
+- Added target flags so steps can opt into Standard builds, Unity Build Automation, or both.
+- Added UBA Apply, PreBuild, and PostBuild phases with persisted user data.
+- Unified player target, option, and scene preparation across Standard and UBA pipelines; UBA now applies the finalized scenes during Pre-Export and restores Editor Build Settings after export.
 - Separated step categorization from repeatable ordering constraints.
 - Enforced category order and rejected constraints that contradict it.
 
