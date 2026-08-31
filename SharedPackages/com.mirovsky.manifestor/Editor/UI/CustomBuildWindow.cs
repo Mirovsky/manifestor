@@ -117,11 +117,37 @@ namespace Manifestor.UI
             LogPipelineStartError(result);
         }
 
+        private void HandleDebugBuildButtonClicked()
+        {
+            var profile = _customBuildData.selectedManifestProfile;
+            if (profile?.buildProfile == null)
+            {
+                var buildResult = ManifestorUnityEditorPipeline.Build(profile, string.Empty);
+                LogPipelineStartError(buildResult);
+                return;
+            }
+
+            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
+            if (string.IsNullOrEmpty(folderPath))
+            {
+                return;
+            }
+
+            var buildOptions = BuildOptions.Development | BuildOptions.AllowDebugging;
+            var result = ManifestorUnityEditorPipeline.Build(profile, folderPath, buildOptions);
+            LogPipelineStartError(result);
+        }
+
         private void HandleBuildChoiceSelected(string choice)
         {
-            if (choice == "Clean Build")
+            switch (choice)
             {
-                HandleCleanBuildButtonClicked();
+                case "Clean Build":
+                    HandleCleanBuildButtonClicked();
+                    break;
+                case "Debug Build":
+                    HandleDebugBuildButtonClicked();
+                    break;
             }
         }
 
