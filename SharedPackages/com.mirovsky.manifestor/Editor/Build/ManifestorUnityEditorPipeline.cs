@@ -32,10 +32,9 @@ namespace Manifestor.Build
 
         static ManifestorUnityEditorPipeline()
         {
-            ManifestorBuildScheduler.Initialize(Runner.Tick);
             if (Runner.Restore())
             {
-                ManifestorBuildScheduler.Queue();
+                Runner.Queue();
             }
         }
 
@@ -74,7 +73,7 @@ namespace Manifestor.Build
             var result = Runner.Cancel();
             if (result.success)
             {
-                ManifestorBuildScheduler.Queue();
+                Runner.Queue();
             }
 
             return result;
@@ -92,7 +91,7 @@ namespace Manifestor.Build
                 return ManifestorResult.Error("A custom build is already in progress.");
             }
 
-            var planResult = ManifestorBuildPlanBuilder.TryCreate(
+            var planResult = ManifestorBuildExecution.TryCreatePlan(
                 profile,
                 operation,
                 outputFolderPath,
@@ -107,7 +106,7 @@ namespace Manifestor.Build
             var startResult = Runner.Start(state);
             if (startResult.success)
             {
-                ManifestorBuildScheduler.Queue();
+                Runner.Queue();
             }
 
             return startResult;

@@ -89,7 +89,7 @@ namespace Manifestor.Build
                     EditorBuildSettings.scenes);
                 receipt.hasOriginalEditorBuildSettingsScenes = true;
                 SaveReceipt(receipt);
-                ManifestorPlayerBuildPreparation.ApplyScenesToEditorBuildSettings(
+                ManifestorBuildExecution.ApplyScenesToEditorBuildSettings(
                     receipt.buildPlayerOptions?.scenes);
                 receipt.phase = PreBuiltPhase;
                 SaveReceipt(receipt);
@@ -195,7 +195,7 @@ namespace Manifestor.Build
             UnityBuildAutomationReceipt receipt,
             ManifestorBuildStepCategory category)
         {
-            var result = ManifestorBuildStepExecutor.RunCategorySynchronously(
+            var result = ManifestorBuildExecution.RunCategorySynchronously(
                 profile,
                 category,
                 ManifestorBuildStepTargets.UnityBuildAutomation,
@@ -227,7 +227,7 @@ namespace Manifestor.Build
                 string.Empty,
                 null,
                 receipt.userData?.ToDictionary());
-            var result = ManifestorPlayerBuildPreparation.Prepare(
+            var result = ManifestorBuildExecution.PreparePlayer(
                 context,
                 ManifestorBuildStepTargets.UnityBuildAutomation);
             if (!result.success)

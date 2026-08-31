@@ -7,12 +7,35 @@ namespace Manifestor.Build
     internal sealed class ManifestorBuildRunner
     {
         private readonly Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> _completed;
+        private bool _isQueued;
 
         public static bool isActive => ManifestorBuildPipelineStateStore.Load().isActive;
 
         public ManifestorBuildRunner(Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> completed)
         {
             _completed = completed;
+        }
+
+        public void Queue()
+        {
+            if (_isQueued)
+            {
+                return;
+            }
+
+            _isQueued = true;
+            EditorApplication.update += Process;
+        }
+
+        public void Stop()
+        {
+            if (!_isQueued)
+            {
+                return;
+            }
+
+            EditorApplication.update -= Process;
+            _isQueued = false;
         }
 
         public bool Restore()
@@ -63,24 +86,7 @@ namespace Manifestor.Build
 
             try
             {
-                var context = new ManifestorBuildContext(
-                    profile,
-                    state.operation,
-                    state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
-                    true,
-                    state.stepState,
-                    (stepState, buildPlayerOptions) =>
-                    {
-                        state.stepState = stepState;
-                        state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
-                        ManifestorBuildPipelineStateStore.Save(state);
-                    },
-                    state.userData?.ToDictionary(),
-                    userData =>
-                    {
-                        state.userData = SerializableBuildUserData.From(userData);
-                        ManifestorBuildPipelineStateStore.Save(state);
-                    });
+                var context = CreateContext(state, profile, true, true);
                 var handler = (IManifestorBuildStepInterruptionHandler)Activator.CreateInstance(stepType);
                 var result = handler.HandleInterruption(context);
                 message = result.message;
@@ -199,26 +205,9 @@ namespace Manifestor.Build
             ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
 
-            var context = new ManifestorBuildContext(
-                profile,
-                state.operation,
-                state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
-                state.cancellationRequested,
-                state.stepState,
-                (stepState, buildPlayerOptions) =>
-                {
-                    state.stepState = stepState;
-                    state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
-                    ManifestorBuildPipelineStateStore.Save(state);
-                },
-                state.userData?.ToDictionary(),
-                userData =>
-                {
-                    state.userData = SerializableBuildUserData.From(userData);
-                    ManifestorBuildPipelineStateStore.Save(state);
-                });
+            var context = CreateContext(state, profile, state.cancellationRequested, true);
 
-            var result = ManifestorBuildStepExecutor.Execute(stepType, context);
+            var result = ManifestorBuildExecution.ExecuteStep(stepType, context);
 
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             state.stepState = context.persistedState;
@@ -275,25 +264,13 @@ namespace Manifestor.Build
         private void RunPlayerBuild(ManifestorBuildPipelineState state, ManifestProfileSO profile)
         {
             state.status = ManifestorBuildPipelineStatus.Running;
-            state.currentStepTypeName = typeof(ManifestorPlayerBuilder).AssemblyQualifiedName;
+            state.currentStepTypeName = typeof(ManifestorBuildExecution).AssemblyQualifiedName;
             state.message = "Building the Unity player.";
             ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Report(state);
 
-            var context = new ManifestorBuildContext(
-                profile,
-                state.operation,
-                state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
-                state.cancellationRequested,
-                string.Empty,
-                null,
-                state.userData?.ToDictionary(),
-                userData =>
-                {
-                    state.userData = SerializableBuildUserData.From(userData);
-                    ManifestorBuildPipelineStateStore.Save(state);
-                });
-            var preparationResult = ManifestorPlayerBuildPreparation.Prepare(context, state.targets);
+            var context = CreateContext(state, profile, state.cancellationRequested, false);
+            var preparationResult = ManifestorBuildExecution.PreparePlayer(context, state.targets);
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             if (!preparationResult.success)
             {
@@ -308,7 +285,7 @@ namespace Manifestor.Build
                 return;
             }
 
-            var result = ManifestorPlayerBuilder.Build(context);
+            var result = ManifestorBuildExecution.BuildPlayer(context);
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             if (!result.success)
             {
@@ -342,7 +319,7 @@ namespace Manifestor.Build
             state.stepState = string.Empty;
             ManifestorBuildPipelineStateStore.Save(state);
             ManifestorBuildProgress.Finish(state, terminalStatus);
-            ManifestorBuildScheduler.Stop();
+            Stop();
 
             switch (terminalStatus)
             {
@@ -368,6 +345,50 @@ namespace Manifestor.Build
             return string.IsNullOrEmpty(message)
                 ? $"Build step '{stepType.FullName}' did not complete successfully."
                 : $"Build step '{stepType.FullName}' did not complete successfully: {message}";
+        }
+
+        private static ManifestorBuildContext CreateContext(
+            ManifestorBuildPipelineState state,
+            ManifestProfileSO profile,
+            bool cancellationRequested,
+            bool persistCheckpoint)
+        {
+            Action<string, BuildPlayerOptions> saveCheckpoint = null;
+            if (persistCheckpoint)
+            {
+                saveCheckpoint = (stepState, buildPlayerOptions) =>
+                {
+                    state.stepState = stepState;
+                    state.buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions);
+                    ManifestorBuildPipelineStateStore.Save(state);
+                };
+            }
+
+            return new ManifestorBuildContext(
+                profile,
+                state.operation,
+                state.buildPlayerOptions?.ToBuildPlayerOptions() ?? default,
+                cancellationRequested,
+                persistCheckpoint ? state.stepState : string.Empty,
+                saveCheckpoint,
+                state.userData?.ToDictionary(),
+                userData =>
+                {
+                    state.userData = SerializableBuildUserData.From(userData);
+                    ManifestorBuildPipelineStateStore.Save(state);
+                });
+        }
+
+        private void Process()
+        {
+            if (EditorApplication.isCompiling ||
+                EditorApplication.isUpdating ||
+                BuildPipeline.isBuildingPlayer)
+            {
+                return;
+            }
+
+            Tick();
         }
     }
 

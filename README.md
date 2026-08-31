@@ -246,6 +246,12 @@ Unity \
 
 Exit code `0` means success, `1` means invalid input or failure, and `2` means cancellation.
 
+### Addressables
+
+Manifestor does not build Addressables directly. Standard Editor and headless builds call Unity's `BuildPipeline.BuildPlayer`, so projects that use Addressables should set **Build Addressables on Player Build** to **Build Addressables content on Player Build** in the project-level Addressable Asset Settings. Do not leave this on the machine-local Preferences value for automated builds. Unity then runs the active Addressables player data builder as part of the fixed player-build action and fails the player build if the content build fails.
+
+Keep project-specific preparation in a UBA-enabled `PreBuild` step rather than calling `AddressableAssetSettings.BuildPlayerContent` from the step. This lets the same preparation run before the native Addressables stage in both Standard and UBA builds without building content twice.
+
 ### Unity Build Automation
 
 Unity Build Automation's pre-export method runs after Unity has compiled scripts. Changing `Packages/manifest.json` there is too late for the current build, so Manifestor uses two Unity processes:
@@ -323,10 +329,13 @@ Configure the UBA target's advanced settings as follows:
 - Pre-Build Script: the repository-relative path to `manifestor-pre-build.sh`.
 - Pre-Export Method: `ProjectBuildAutomation.ManifestorUnityBuildAutomationHook.PreExport`.
 - Post-Export Method: `ProjectBuildAutomation.ManifestorUnityBuildAutomationHook.PostExport`.
+- Addressables: select **Yes, build Addressables**. For full player builds, leave content-update and content-only options disabled.
 
 The selected path must be a committed `.asset` under `Assets`, and its Unity Build Profile target must match the UBA target. Manifestor must be present in the checkout's initial `Packages/manifest.json` and remain in the generated profile manifest unless it is embedded under `Packages/com.mirovsky.manifestor`.
 
 Steps default to both Standard and UBA execution. Pass `ManifestorBuildStepTargets.Standard` to `[ManifestorBuildStep]` to exclude a step from UBA. `Waiting` is resumable during Apply, but returning it from synchronous PreBuild or PostBuild hooks fails the UBA build. A PreBuild step can set `context.buildPlayerOptions.scenes`; when it leaves scenes null, Manifestor uses the enabled Editor Build Settings scenes. Configure UBA to use project build-settings scenes so it does not override Manifestor's finalized list after Pre-Export.
+
+UBA owns its Addressables build and runs it after Manifestor's Pre-Export/PreBuild work and before the Post-Export/PostBuild hook. Do not invoke `CleanPlayerContent` or `BuildPlayerContent` from UBA-enabled Manifestor steps. UBA publishes the generated Addressables content under `$OUTPUT_DIRECTORY/extra_data/addrs`; content-update, content-only, CCD upload, and publishing workflows require separate UBA configuration.
 
 ## Development and support
 
