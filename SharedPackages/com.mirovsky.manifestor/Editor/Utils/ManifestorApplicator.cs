@@ -286,7 +286,7 @@ namespace Manifestor
             string failureMessage,
             bool cancelled = false)
         {
-            var rollbackErrors = new System.Collections.Generic.List<string>();
+            var rollbackErrors = new List<string>();
             try
             {
                 if (state.previousManifestExisted)
@@ -349,7 +349,7 @@ namespace Manifestor
 
         internal static void RestoreBuildState(
             ApplyState state,
-            System.Collections.Generic.ICollection<string> rollbackErrors)
+            ICollection<string> rollbackErrors)
         {
             try
             {
