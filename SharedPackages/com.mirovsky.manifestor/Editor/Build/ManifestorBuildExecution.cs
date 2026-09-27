@@ -82,6 +82,15 @@ namespace Manifestor.Build
                     (operation == ManifestorBuildOperation.Build
                         ? BuildPlayerOptionsFactory.Create(profile, outputFolderPath, options)
                         : default);
+                if (operation == ManifestorBuildOperation.Build)
+                {
+                    var optionsValidation = NormalizeBuildPlayerOptions(profile, ref buildPlayerOptions);
+                    if (!optionsValidation.success)
+                    {
+                        return optionsValidation;
+                    }
+                }
+
                 state = new ManifestorBuildPipelineState
                 {
                     isActive = true,
@@ -105,6 +114,36 @@ namespace Manifestor.Build
             {
                 return ManifestorResult.Error($"Failed to create custom build plan: {exception.Message}");
             }
+        }
+
+        internal static ManifestorResult NormalizeBuildPlayerOptions(
+            ManifestProfileSO profile,
+            ref BuildPlayerOptions buildPlayerOptions)
+        {
+            var expectedTarget = BuildProfileUtility.GetBuildTarget(profile.buildProfile);
+            var expectedGroup = BuildPipeline.GetBuildTargetGroup(expectedTarget);
+            if (buildPlayerOptions.target is 0 or BuildTarget.NoTarget)
+            {
+                buildPlayerOptions.target = expectedTarget;
+                buildPlayerOptions.subtarget = BuildProfileUtility.GetSubtarget(profile.buildProfile);
+            }
+            else if (buildPlayerOptions.target != expectedTarget)
+            {
+                return ManifestorResult.Error(
+                    $"Build target '{buildPlayerOptions.target}' does not match manifest profile target '{expectedTarget}'.");
+            }
+
+            if (buildPlayerOptions.targetGroup == BuildTargetGroup.Unknown)
+            {
+                buildPlayerOptions.targetGroup = expectedGroup;
+            }
+            else if (buildPlayerOptions.targetGroup != expectedGroup)
+            {
+                return ManifestorResult.Error(
+                    $"Build target group '{buildPlayerOptions.targetGroup}' does not match manifest profile group '{expectedGroup}'.");
+            }
+
+            return ManifestorResult.Ok();
         }
 
         public static ManifestorBuildStepResult ExecuteStep(Type stepType, ManifestorBuildContext context)

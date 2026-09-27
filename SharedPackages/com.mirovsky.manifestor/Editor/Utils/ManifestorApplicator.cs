@@ -55,7 +55,13 @@ namespace Manifestor
             {
                 if (_resolveRequest == null)
                 {
-                    Client.Resolve();
+                    if (!state.resolveIssued)
+                    {
+                        Client.Resolve();
+                        state.resolveIssued = true;
+                        context.SaveCheckpoint(JsonUtility.ToJson(state));
+                    }
+
                     _resolveRequest = Client.List(offlineMode: false, includeIndirectDependencies: true);
                 }
                 if (!_resolveRequest.IsCompleted)
@@ -170,6 +176,8 @@ namespace Manifestor
 
                 ManifestorProfileMaterializer.ApplyManifestAndDefines(profile);
                 Client.Resolve();
+                state.resolveIssued = true;
+                context.SaveCheckpoint(JsonUtility.ToJson(state));
                 _resolveRequest = Client.List(offlineMode: false, includeIndirectDependencies: true);
                 return ManifestorBuildStepResult.Waiting("Waiting for Unity Package Manager to resolve the manifest.");
             }
@@ -439,6 +447,7 @@ namespace Manifestor
         internal sealed class ApplyState
         {
             public bool isActive;
+            public bool resolveIssued;
             public string profilePath;
             public string profileFingerprint;
             public bool previousManifestExisted;

@@ -31,10 +31,8 @@ namespace Manifestor.Build
                 return;
             }
 
-            var matches = AssetDatabase.FindAssets("t:ManifestProfileSO")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .Select(AssetDatabase.LoadAssetAtPath<ManifestProfileSO>)
-                .Where(profile => profile != null && profile.buildProfile == activeBuildProfile)
+            var matches = ManifestProfileAssets.FindAll()
+                .Where(profile => profile.buildProfile == activeBuildProfile)
                 .ToArray();
             if (matches.Length == 0)
             {
