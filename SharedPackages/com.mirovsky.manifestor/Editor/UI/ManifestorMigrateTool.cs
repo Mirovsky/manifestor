@@ -10,17 +10,11 @@ namespace Manifestor.UI
 
     public class ManifestorMigrateTool : EditorWindow
     {
-        private const string TargetToggleClass = "manifestor-migration-target-toggle";
-        private const string BulkToggleClass = "manifestor-migration-bulk-selection__toggle";
-
         [SerializeField] private VisualTreeAsset _migrationToolAsset;
 
         private readonly ViewDataModel _viewDataModel = new();
-        private readonly Dictionary<string, Toggle> _bulkToggles = new(StringComparer.Ordinal);
 
         private ListView _contentListView;
-        private VisualElement _bulkSelectionHeader;
-        private VisualElement _bulkSelectionToggles;
 
         private void CreateGUI()
         {
@@ -29,10 +23,6 @@ namespace Manifestor.UI
             _contentListView = rootVisualElement.Q<ListView>("ContentListView");
             _contentListView.itemsSource = _viewDataModel.rows;
             _contentListView.makeNoneElement = () => null;
-
-            _bulkSelectionHeader = rootVisualElement.Q<VisualElement>("BulkSelectionHeader");
-            _bulkSelectionToggles = rootVisualElement.Q<VisualElement>("BulkSelectionToggles");
-            rootVisualElement.RegisterCallback<ChangeEvent<bool>>(HandleTargetSelectionChanged);
 
             var newPackageListButton = rootVisualElement.Q<Button>("NewPackageListButton");
             var applyButton = rootVisualElement.Q<Button>("ApplyButton");
@@ -68,31 +58,6 @@ namespace Manifestor.UI
         private void HandleRefreshButtonClicked()
         {
             Refresh();
-        }
-
-        private void HandleTargetSelectionChanged(ChangeEvent<bool> evt)
-        {
-            if (evt.target is not Toggle toggle || !toggle.ClassListContains(TargetToggleClass))
-            {
-                return;
-            }
-
-            rootVisualElement.schedule.Execute(UpdateBulkSelectionStates);
-        }
-
-        private void HandleBulkSelectionChanged(string assetPath, bool selected)
-        {
-            foreach (var target in _viewDataModel.rows
-                         .Where(row => row.targets != null)
-                         .SelectMany(row => row.targets)
-                         .Where(target => target != null &&
-                                          string.Equals(target.assetPath, assetPath, StringComparison.Ordinal)))
-            {
-                target.selected = selected;
-            }
-
-            _contentListView.RefreshItems();
-            UpdateBulkSelectionStates();
         }
 
         private void Refresh()
@@ -131,8 +96,6 @@ namespace Manifestor.UI
                 ? DisplayStyle.Flex
                 : DisplayStyle.None;
 
-            RebuildBulkSelectionHeader();
-
             var emptyLabel = rootVisualElement.Q<Label>("EmptyContentList");
             emptyLabel.style.display = hasChanges
                 ? DisplayStyle.None
@@ -140,61 +103,6 @@ namespace Manifestor.UI
 
             _contentListView?.RefreshItems();
             Repaint();
-        }
-
-        private void RebuildBulkSelectionHeader()
-        {
-            _bulkSelectionToggles.Clear();
-            _bulkToggles.Clear();
-
-            var packageLists = _viewDataModel.rows
-                .Where(row => row.targets != null)
-                .SelectMany(row => row.targets)
-                .Where(target => target != null)
-                .GroupBy(target => target.assetPath, StringComparer.Ordinal)
-                .Select(group => group.First())
-                .OrderBy(target => target.packageListName, StringComparer.Ordinal)
-                .ThenBy(target => target.assetPath, StringComparer.Ordinal);
-
-            foreach (var packageList in packageLists)
-            {
-                var assetPath = packageList.assetPath;
-                var toggle = new Toggle(packageList.packageListName)
-                {
-                    tooltip = assetPath
-                };
-                toggle.AddToClassList(BulkToggleClass);
-                toggle.RegisterValueChangedCallback(evt =>
-                    HandleBulkSelectionChanged(assetPath, evt.newValue));
-
-                _bulkToggles.Add(assetPath, toggle);
-                _bulkSelectionToggles.Add(toggle);
-            }
-
-            _bulkSelectionHeader.style.display = _bulkToggles.Count > 0
-                ? DisplayStyle.Flex
-                : DisplayStyle.None;
-            UpdateBulkSelectionStates();
-        }
-
-        private void UpdateBulkSelectionStates()
-        {
-            foreach (var (assetPath, toggle) in _bulkToggles)
-            {
-                var selections = _viewDataModel.rows
-                    .Where(row => row.targets != null)
-                    .SelectMany(row => row.targets)
-                    .Where(target => target != null &&
-                                     string.Equals(target.assetPath, assetPath, StringComparison.Ordinal))
-                    .Select(target => target.selected)
-                    .ToList();
-                var selectedCount = selections.Count(selected => selected);
-                var allSelected = selections.Count > 0 && selectedCount == selections.Count;
-                var partiallySelected = selectedCount > 0 && !allSelected;
-
-                toggle.SetValueWithoutNotify(allSelected);
-                toggle.showMixedValue = partiallySelected;
-            }
         }
 
         private static (string packageTechnicalName, string manifestValue, string packageListValue, ManifestPackageChangeKind changeKind, string assetPath) CreateSelectionKey(ManifestPackageDiffEntry change, string assetPath)

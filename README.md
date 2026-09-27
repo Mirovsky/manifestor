@@ -6,7 +6,7 @@ Manifestor also provides a custom build pipeline and a migration window for keep
 
 ### Build entry points
 
-- **CustomBuild / Unity Editor:** `ManifestorUnityEditorPipeline` powers the Custom Build window and queued Editor API.
+- **Manifestor Build / Unity Editor:** `ManifestorUnityEditorPipeline` powers the Manifestor Build window and queued Editor API.
 - **Terminal:** `ManifestorHeadlessBuild.BuildFromCommandLine` runs the same Standard plan in batch mode.
 - **Unity Build Automation:** `ManifestorUnityBuildAutomation.Apply`, `.PreBuild`, and `.PostBuild` run the UBA-enabled phases around UBA's player build.
 
@@ -58,13 +58,13 @@ A package identifier may only be declared once across the lists assigned to the 
 
 ### 2. Create a manifest profile
 
-Open **Tools > Manifestor > Custom Build** and select **New Manifest**, or create an asset with **Assets > Create > Manifestor > Platform Profile**. Configure:
+Open **Tools > Manifestor > Manifestor Build** and select **New Manifest**, or create an asset with **Assets > Create > Manifestor > Platform Profile**. Configure:
 
 - **Profile Name**: the display name used to identify the profile.
 - **Build Profile**: a saved Unity Build Profile for the target platform.
 - **Package Lists**: the package-list assets that make up this manifest.
 
-The Custom Build window discovers saved manifest profiles automatically. Use **Refresh** if assets were changed outside the window.
+The Manifestor Build window discovers saved manifest profiles automatically. Use **Refresh** if assets were changed outside the window.
 
 ### 3. Apply a profile
 
@@ -82,7 +82,7 @@ The last successfully applied profile is restored when the editor starts if its 
 
 ### 4. Build
 
-In **Tools > Manifestor > Custom Build**, select a profile and choose:
+In **Tools > Manifestor > Manifestor Build**, select a profile and choose:
 
 - **Build** to apply the manifest and build the player.
 - **Clean Build** from the Build dropdown to request a clean Unity build cache.
@@ -103,7 +103,7 @@ Manifestor's assembly is Editor-only and has **Auto Referenced** disabled. Put e
 
 ### Custom manifest profile
 
-Subclass `ManifestProfileSO` to add project-specific serialized settings. Mark exactly one concrete, non-generic subclass with `[CustomManifestProfile]`; the Custom Build window will then create that type instead of the base profile.
+Subclass `ManifestProfileSO` to add project-specific serialized settings. Mark exactly one concrete, non-generic subclass with `[CustomManifestProfile]`; the Manifestor Build window will then create that type instead of the base profile.
 
 ```csharp
 using System.Collections.Generic;
@@ -292,12 +292,8 @@ Because Manifestor's assembly has **Auto Referenced** disabled, put the forwardi
 ```json
 {
   "name": "Project.ManifestorUnityBuildAutomation",
-  "references": [
-    "com.mirovsky.manifestor"
-  ],
-  "includePlatforms": [
-    "Editor"
-  ]
+  "references": ["com.mirovsky.manifestor"],
+  "includePlatforms": ["Editor"]
 }
 ```
 

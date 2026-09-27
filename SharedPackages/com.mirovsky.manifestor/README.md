@@ -22,13 +22,13 @@ For embedded development, copy this directory to `Packages/com.mirovsky.manifest
 ## Quick start
 
 1. Create one or more package lists with **Assets > Create > Manifestor > Packages List**.
-2. Open **Tools > Manifestor > Custom Build** and select **New Manifest**.
+2. Open **Tools > Manifestor > Manifestor Build** and select **New Manifest**.
 3. Assign a saved Unity Build Profile and the package lists to the manifest profile.
 4. Select **Apply Manifest** to update the project, or **Build** to apply it and build the player.
 
 Manifestor replaces the managed dependencies, scoped registries, testables, and target scripting defines with the selected profile's configuration. If application fails, it attempts to restore the previous manifest, active Build Profile, and define symbols.
 
-Build entry points are `ManifestorUnityEditorPipeline` for CustomBuild and Editor code, `ManifestorHeadlessBuild.BuildFromCommandLine` for terminal builds, and `ManifestorUnityBuildAutomation` for UBA Apply/PreBuild/PostBuild phases.
+Build entry points are `ManifestorUnityEditorPipeline` for the Manifestor Build window and Editor code, `ManifestorHeadlessBuild.BuildFromCommandLine` for terminal builds, and `ManifestorUnityBuildAutomation` for UBA Apply/PreBuild/PostBuild phases.
 
 ## Build Profiles Build button
 

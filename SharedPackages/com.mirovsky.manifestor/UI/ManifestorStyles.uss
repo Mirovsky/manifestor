@@ -85,42 +85,6 @@
     padding-left: 10px;
 }
 
-.manifestor-migration-bulk-selection {
-    display: none;
-    flex-direction: row;
-    align-items: flex-start;
-    justify-content: space-between;
-    margin-top: 2px;
-    margin-bottom: 2px;
-    padding-top: 4px;
-    padding-right: 8px;
-    padding-bottom: 4px;
-    padding-left: 8px;
-    background-color: rgb(52, 52, 52);
-}
-
-.manifestor-migration-bulk-selection__label {
-    flex-shrink: 0;
-    margin-right: 10px;
-    margin-bottom: 1px;
-    padding-top: 0px;
-    color: rgb(166, 166, 166);
-    -unity-font-style: bold;
-}
-
-.manifestor-migration-bulk-selection__toggles {
-    flex-grow: 0;
-    flex-direction: row;
-    flex-wrap: wrap;
-}
-
-.manifestor-migration-bulk-selection__toggle {
-    margin-top: 0;
-    margin-right: 12px;
-    margin-bottom: 2px;
-    margin-left: 0;
-}
-
 .manifestor-migration-group-title {
     display: none;
     margin-top: 8px;
