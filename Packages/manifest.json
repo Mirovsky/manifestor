@@ -1,14 +1,21 @@
 {
   "manifestorData": {
-    "name": "WindowsStandalone",
+    "name": "EmptyWindowsStandalone",
     "createdByProfile": true,
-    "dependenciesFingerprint": "d2c497044ee6d5c646be925cb264a4f1ff37d5ead87f1a601427b3142e873aaf"
+    "dependenciesFingerprint": "f5d2eb01994292f4614f1926e31a845dacad4cef8c54626729cfff4bbeb2e8d2"
   },
   "scopedRegistries": [],
   "dependencies": {
-    "com.unity.ai.assistant": "2.16.0-pre.1",
+    "com.mirovsky.manifestor": "file:../SharedPackages/com.mirovsky.manifestor",
+    "com.unity.2d.animation": "15.1.0",
     "com.unity.collections": "6.5.0",
     "com.unity.ide.rider": "3.0.40",
+    "com.unity.nuget.newtonsoft-json": "3.2.2",
+    "com.unity.render-pipelines.core": "17.5.0",
+    "com.unity.render-pipelines.universal": "17.5.0",
+    "com.unity.test-framework": "1.7.0",
+    "com.unity.ugui": "2.5.0",
+    "com.unity.ui.test-framework": "6.5.0",
     "com.unity.modules.accessibility": "1.0.0",
     "com.unity.modules.adaptiveperformance": "1.0.0",
     "com.unity.modules.ai": "1.0.0",
@@ -19,6 +26,7 @@
     "com.unity.modules.audio": "1.0.0",
     "com.unity.modules.cloth": "1.0.0",
     "com.unity.modules.director": "1.0.0",
+    "com.unity.modules.hierarchy": "1.0.0",
     "com.unity.modules.imageconversion": "1.0.0",
     "com.unity.modules.imgui": "1.0.0",
     "com.unity.modules.jsonserialize": "1.0.0",
@@ -44,16 +52,7 @@
     "com.unity.modules.vehicles": "1.0.0",
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0",
-    "com.unity.nuget.newtonsoft-json": "3.2.2",
-    "com.unity.render-pipelines.core": "17.5.0",
-    "com.unity.render-pipelines.universal": "17.5.0",
-    "com.unity.test-framework": "1.7.0",
-    "com.unity.ugui": "2.5.0",
-    "com.unity.ui.test-framework": "6.5.0",
-    "com.unity.modules.hierarchy": "1.0.0",
-    "com.unity.2d.animation": "15.1.0",
-    "com.mirovsky.manifestor": "file:../SharedPackages/com.mirovsky.manifestor"
+    "com.unity.modules.xr": "1.0.0"
   },
   "enableLockFile": true,
   "resolutionStrategy": "lowest",

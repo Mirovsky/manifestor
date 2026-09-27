@@ -1,5 +1,5 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
-    <ui:Toggle label="Toggle" data-source-type="Manifestor.UI.ManifestorMigrateTool+PackageListSelection, com.mirovsky.manifestor" class="manifestor-migration-target-toggle" style="margin-top: 2px; margin-right: 0; margin-bottom: 2px; margin-left: 0;">
+    <ui:Toggle label="Toggle" data-source-type="Manifestor.UI.ManifestorMigrateTool+PackageListSelection, com.mirovsky.manifestor" style="margin-top: 2px; margin-right: 0; margin-bottom: 2px; margin-left: 0;">
         <Bindings>
             <ui:DataBinding property="label" data-source-path="packageListName" binding-mode="ToTarget"/>
             <ui:DataBinding property="value" data-source-path="selected" binding-mode="TwoWay"/>

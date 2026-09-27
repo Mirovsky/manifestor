@@ -69,7 +69,7 @@ namespace Manifestor.UI
             DestroyManifestProfileEditor();
         }
 
-        [MenuItem("Tools/Manifestor/Custom Build")]
+        [MenuItem("Tools/Manifestor/Manifestor Build")]
         public static void ShowWindow()
         {
             var window = GetWindow<CustomBuildWindow>("Manifestor Build");
