@@ -138,6 +138,12 @@ namespace Manifestor.UI
             ManifestorBuildOperation operation,
             ManifestorBuildPipelineStatus status)
         {
+            if (operation == ManifestorBuildOperation.Apply &&
+                status == ManifestorBuildPipelineStatus.Succeeded)
+            {
+                _selectedProfile = ManifestorSettings.instance.appliedProfile;
+            }
+
             Refresh();
         }
 
