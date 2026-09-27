@@ -15,6 +15,33 @@ namespace Manifestor.Build
             ManifestorBuildStepTargets targets,
             out ManifestorBuildPipelineState state)
         {
+            return TryCreatePlan(profile, operation, outputFolderPath, options, targets, null, out state);
+        }
+
+        public static ManifestorResult TryCreatePlan(
+            ManifestProfileSO profile,
+            BuildPlayerOptions buildPlayerOptions,
+            out ManifestorBuildPipelineState state)
+        {
+            return TryCreatePlan(
+                profile,
+                ManifestorBuildOperation.Build,
+                string.Empty,
+                BuildOptions.None,
+                ManifestorBuildStepTargets.Standard,
+                buildPlayerOptions,
+                out state);
+        }
+
+        private static ManifestorResult TryCreatePlan(
+            ManifestProfileSO profile,
+            ManifestorBuildOperation operation,
+            string outputFolderPath,
+            BuildOptions options,
+            ManifestorBuildStepTargets targets,
+            BuildPlayerOptions? initialBuildPlayerOptions,
+            out ManifestorBuildPipelineState state)
+        {
             state = null;
 
             var validation = ManifestorProfileValidator.Validate(profile);
@@ -23,9 +50,12 @@ namespace Manifestor.Build
                 return validation;
             }
 
-            if (operation == ManifestorBuildOperation.Build && string.IsNullOrWhiteSpace(outputFolderPath))
+            if (operation == ManifestorBuildOperation.Build &&
+                (initialBuildPlayerOptions.HasValue
+                    ? string.IsNullOrWhiteSpace(initialBuildPlayerOptions.Value.locationPathName)
+                    : string.IsNullOrWhiteSpace(outputFolderPath)))
             {
-                return ManifestorResult.Error("Build output folder cannot be empty.");
+                return ManifestorResult.Error("Build output location cannot be empty.");
             }
 
             var profilePath = AssetDatabase.GetAssetPath(profile);
@@ -48,9 +78,10 @@ namespace Manifestor.Build
 
             try
             {
-                var buildPlayerOptions = operation == ManifestorBuildOperation.Build
-                    ? BuildPlayerOptionsFactory.Create(profile, outputFolderPath, options)
-                    : default;
+                var buildPlayerOptions = initialBuildPlayerOptions ??
+                    (operation == ManifestorBuildOperation.Build
+                        ? BuildPlayerOptionsFactory.Create(profile, outputFolderPath, options)
+                        : default);
                 state = new ManifestorBuildPipelineState
                 {
                     isActive = true,

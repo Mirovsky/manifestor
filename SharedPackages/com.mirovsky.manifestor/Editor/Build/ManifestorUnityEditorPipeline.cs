@@ -65,6 +65,13 @@ namespace Manifestor.Build
                 ManifestorBuildStepTargets.Standard);
         }
 
+        internal static ManifestorResult BuildFromBuildProfiles(
+            ManifestProfileSO profile,
+            BuildPlayerOptions buildPlayerOptions)
+        {
+            return Runner.Start(profile, buildPlayerOptions);
+        }
+
         public static ManifestorResult Cancel()
         {
             return Runner.Cancel();

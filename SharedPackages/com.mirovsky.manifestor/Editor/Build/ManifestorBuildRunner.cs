@@ -113,19 +113,40 @@ namespace Manifestor.Build
             BuildOptions options,
             ManifestorBuildStepTargets targets)
         {
+            return Start(profile, operation, outputFolderPath, options, targets, null);
+        }
+
+        public ManifestorResult Start(ManifestProfileSO profile, BuildPlayerOptions buildPlayerOptions)
+        {
+            return Start(
+                profile,
+                ManifestorBuildOperation.Build,
+                string.Empty,
+                BuildOptions.None,
+                ManifestorBuildStepTargets.Standard,
+                buildPlayerOptions);
+        }
+
+        private ManifestorResult Start(
+            ManifestProfileSO profile,
+            ManifestorBuildOperation operation,
+            string outputFolderPath,
+            BuildOptions options,
+            ManifestorBuildStepTargets targets,
+            BuildPlayerOptions? initialBuildPlayerOptions)
+        {
             var currentState = ManifestorBuildPipelineStateStore.Load();
             if (currentState.isActive || BuildPipeline.isBuildingPlayer)
             {
                 return ManifestorResult.Error("A custom build is already in progress.");
             }
 
-            var planResult = ManifestorBuildExecution.TryCreatePlan(
-                profile,
-                operation,
-                outputFolderPath,
-                options,
-                targets,
-                out var state);
+            ManifestorBuildPipelineState state;
+            var planResult = initialBuildPlayerOptions.HasValue
+                ? ManifestorBuildExecution.TryCreatePlan(
+                    profile, initialBuildPlayerOptions.Value, out state)
+                : ManifestorBuildExecution.TryCreatePlan(
+                    profile, operation, outputFolderPath, options, targets, out state);
             if (!planResult.success)
             {
                 return planResult;

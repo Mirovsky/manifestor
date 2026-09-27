@@ -30,6 +30,14 @@ Manifestor replaces the managed dependencies, scoped registries, testables, and 
 
 Build entry points are `ManifestorUnityEditorPipeline` for CustomBuild and Editor code, `ManifestorHeadlessBuild.BuildFromCommandLine` for terminal builds, and `ManifestorUnityBuildAutomation` for UBA Apply/PreBuild/PostBuild phases.
 
+## Build Profiles Build button
+
+To run the full Manifestor pipeline from Unity's **Build Profiles > Build** or **Build and Run** button, enable **Use Build Profiles Build button** in **Project Settings > Manifestor**, then reload scripts or restart the Editor. The setting is off by default and is stored in `ProjectSettings/ManifestorBuildProfilesSettings.asset`.
+
+When the active Unity Build Profile is referenced by one Manifestor profile, the button applies that profile, runs its build steps, and builds with Unity's selected output location and options. If several Manifestor profiles reference it, apply the desired Manifestor profile first; the last applied matching profile is used. Without a matching Manifestor profile, Unity's normal build runs. Build and Run preserves Unity's launch option.
+
+Unity allows only one registered build player handler. Another package can replace Manifestor's handler, and this integration does not intercept builds started directly through `BuildPipeline.BuildPlayer` or Multiplayer Play Mode virtual players. The setting takes effect after the next script reload or Editor restart.
+
 When `Packages/manifest.json` changes outside Manifestor, use **Tools > Manifestor > Manifest Migration** to synchronize those changes back into package-list assets.
 
 ## Extending Manifestor
