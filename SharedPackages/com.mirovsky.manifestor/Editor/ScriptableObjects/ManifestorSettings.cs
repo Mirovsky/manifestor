@@ -10,8 +10,6 @@ namespace Manifestor
         [SerializeField] private string _profilePath;
         [SerializeField] private string _profileFingerprint;
 
-        public string profilePath => _profilePath;
-        public string profileFingerprint => _profileFingerprint;
         public ManifestProfileSO appliedProfile => TryGetLastAppliedProfilePath(out var assetPath)
             ? AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(assetPath)
             : null;
@@ -36,7 +34,7 @@ namespace Manifestor
         {
             fingerprint = _profileFingerprint;
 
-            return !string.IsNullOrEmpty(profileFingerprint);
+            return !string.IsNullOrEmpty(_profileFingerprint);
         }
 
         public void RestoreLastAppliedProfile(
@@ -45,24 +43,10 @@ namespace Manifestor
             bool hadFingerprint,
             string fingerprint)
         {
-            if (hadProfilePath)
-            {
-                _profilePath = path;
-            }
-            else
-            {
-                _profilePath = string.Empty;
-            }
+            _profilePath = hadProfilePath ? path : string.Empty;
+            _profileFingerprint = hadFingerprint ? fingerprint : string.Empty;
 
-            if (hadFingerprint)
-            {
-                _profileFingerprint = fingerprint;
-            }
-            else
-            {
-                _profileFingerprint = string.Empty;
-            }
-
+            Save(saveAsText: true);
             EditorApplication.delayCall += EditorApplication.UpdateMainWindowTitle;
         }
     }

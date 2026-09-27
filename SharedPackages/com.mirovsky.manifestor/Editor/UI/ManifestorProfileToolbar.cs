@@ -14,13 +14,13 @@ namespace Manifestor.UI
         private const string ToolbarPath = "Manifestor/Profile";
 
         private static ManifestProfileSO _selectedProfile;
+        private static List<ManifestProfileSO> _cachedProfiles;
+        private static HashSet<string> _cachedProfilePaths;
 
         static ManifestorProfileToolbar()
         {
             ManifestorUnityEditorPipeline.completed -= HandlePipelineCompleted;
             ManifestorUnityEditorPipeline.completed += HandlePipelineCompleted;
-            EditorApplication.projectChanged -= Refresh;
-            EditorApplication.projectChanged += Refresh;
             ObjectChangeEvents.changesPublished -= HandleObjectChanges;
             ObjectChangeEvents.changesPublished += HandleObjectChanges;
         }
@@ -48,12 +48,36 @@ namespace Manifestor.UI
 
         private static List<ManifestProfileSO> FindProfiles()
         {
-            return AssetDatabase.FindAssets("t:ManifestProfileSO")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .Select(AssetDatabase.LoadAssetAtPath<ManifestProfileSO>)
-                .Where(profile => profile != null)
-                .ToList();
+            if (_cachedProfiles != null)
+            {
+                return _cachedProfiles;
+            }
+
+            _cachedProfiles = ManifestProfileAssets.FindAll();
+            _cachedProfilePaths = _cachedProfiles
+                .Select(AssetDatabase.GetAssetPath)
+                .ToHashSet(StringComparer.Ordinal);
+            return _cachedProfiles;
+        }
+
+        internal static void InvalidateIfProfilesChanged(
+            IEnumerable<string> importedAssets,
+            IEnumerable<string> deletedAssets,
+            IEnumerable<string> movedAssets,
+            IEnumerable<string> movedFromAssetPaths)
+        {
+            var knownPaths = _cachedProfilePaths;
+            var changed = importedAssets.Concat(movedAssets)
+                .Any(path => AssetDatabase.LoadAssetAtPath<ManifestProfileSO>(path) != null) ||
+                knownPaths != null && deletedAssets.Concat(movedFromAssetPaths).Any(knownPaths.Contains);
+            if (!changed)
+            {
+                return;
+            }
+
+            _cachedProfiles = null;
+            _cachedProfilePaths = null;
+            Refresh();
         }
 
         private static void EnsureValidSelection(IReadOnlyList<ManifestProfileSO> profiles)
@@ -170,6 +194,19 @@ namespace Manifestor.UI
         private static void Refresh()
         {
             MainToolbar.Refresh(ToolbarPath);
+        }
+    }
+
+    internal sealed class ManifestorProfileToolbarAssetPostprocessor : AssetPostprocessor
+    {
+        private static void OnPostprocessAllAssets(
+            string[] importedAssets,
+            string[] deletedAssets,
+            string[] movedAssets,
+            string[] movedFromAssetPaths)
+        {
+            ManifestorProfileToolbar.InvalidateIfProfilesChanged(
+                importedAssets, deletedAssets, movedAssets, movedFromAssetPaths);
         }
     }
 }

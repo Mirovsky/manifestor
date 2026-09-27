@@ -8,6 +8,7 @@ namespace Manifestor.Build
     {
         private readonly Action<ManifestorBuildOperation, ManifestorBuildPipelineStatus> _completed;
         private bool _isQueued;
+        private long _nextResumeAfterUtcTicks;
 
         public bool isActive => ManifestorBuildPipelineStateStore.Load().isActive;
 
@@ -36,6 +37,7 @@ namespace Manifestor.Build
 
             EditorApplication.update -= Process;
             _isQueued = false;
+            _nextResumeAfterUtcTicks = 0;
         }
 
         public void Restore()
@@ -43,6 +45,7 @@ namespace Manifestor.Build
             var state = ManifestorBuildPipelineStateStore.Load();
             ManifestorBuildProgress.Restore(state);
             ManifestorBuildPipelineStateStore.Save(state);
+            _nextResumeAfterUtcTicks = state.resumeAfterUtcTicks;
             if (!state.isActive)
             {
                 return;
@@ -154,6 +157,7 @@ namespace Manifestor.Build
 
             ManifestorBuildProgress.Start(state);
             ManifestorBuildPipelineStateStore.Save(state);
+            _nextResumeAfterUtcTicks = state.resumeAfterUtcTicks;
             Queue();
             return ManifestorResult.Ok();
         }
@@ -169,8 +173,7 @@ namespace Manifestor.Build
             state.cancellationRequested = true;
             state.message = "Custom build cancellation requested.";
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            ManifestorBuildProgress.Report(state);
-            ManifestorBuildPipelineStateStore.Save(state);
+            ReportAndSaveActiveState(state);
             Queue();
             return ManifestorResult.Ok();
         }
@@ -178,7 +181,14 @@ namespace Manifestor.Build
         public void Tick()
         {
             var state = ManifestorBuildPipelineStateStore.Load();
-            if (!state.isActive || DateTime.UtcNow.Ticks < state.resumeAfterUtcTicks)
+            if (!state.isActive)
+            {
+                Stop();
+                return;
+            }
+
+            _nextResumeAfterUtcTicks = state.resumeAfterUtcTicks;
+            if (DateTime.UtcNow.Ticks < state.resumeAfterUtcTicks)
             {
                 return;
             }
@@ -271,8 +281,7 @@ namespace Manifestor.Build
             state.currentActionStarted = true;
             state.message = $"Running build step '{stepType.FullName}'.";
 
-            ManifestorBuildProgress.Report(state);
-            ManifestorBuildPipelineStateStore.Save(state);
+            ReportAndSaveActiveState(state);
 
             var context = CreateContext(state, profile, state.cancellationRequested, true);
 
@@ -288,8 +297,7 @@ namespace Manifestor.Build
                     ? $"Build step '{stepType.FullName}' is waiting."
                     : result.message;
                 state.resumeAfterUtcTicks = DateTime.UtcNow.AddSeconds(result.retryAfterSeconds).Ticks;
-                ManifestorBuildProgress.Report(state);
-                ManifestorBuildPipelineStateStore.Save(state);
+                ReportAndSaveActiveState(state);
                 return;
             }
 
@@ -318,8 +326,7 @@ namespace Manifestor.Build
                 ? $"Build step '{stepType.FullName}' completed."
                 : result.message;
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
-            ManifestorBuildProgress.Report(state);
-            ManifestorBuildPipelineStateStore.Save(state);
+            ReportAndSaveActiveState(state);
         }
 
         private void RunPlayerBuild(ManifestorBuildPipelineState state, ManifestProfileSO profile)
@@ -327,8 +334,7 @@ namespace Manifestor.Build
             state.status = ManifestorBuildPipelineStatus.Running;
             state.currentActionStarted = true;
             state.message = "Building the Unity player.";
-            ManifestorBuildProgress.Report(state);
-            ManifestorBuildPipelineStateStore.Save(state);
+            ReportAndSaveActiveState(state);
 
             var context = CreateContext(state, profile, state.cancellationRequested, false);
             var preparationResult = ManifestorPlayerBuild.Prepare(context, state.targets);
@@ -364,8 +370,14 @@ namespace Manifestor.Build
             state.status = ManifestorBuildPipelineStatus.Waiting;
             state.message = result.message;
             state.resumeAfterUtcTicks = DateTime.UtcNow.Ticks;
+            ReportAndSaveActiveState(state);
+        }
+
+        private void ReportAndSaveActiveState(ManifestorBuildPipelineState state)
+        {
             ManifestorBuildProgress.Report(state);
             ManifestorBuildPipelineStateStore.Save(state);
+            _nextResumeAfterUtcTicks = state.resumeAfterUtcTicks;
         }
 
         private void Complete(
@@ -465,7 +477,8 @@ namespace Manifestor.Build
 
         private void Process()
         {
-            if (EditorApplication.isCompiling ||
+            if (DateTime.UtcNow.Ticks < _nextResumeAfterUtcTicks ||
+                EditorApplication.isCompiling ||
                 EditorApplication.isUpdating ||
                 BuildPipeline.isBuildingPlayer)
             {
@@ -479,11 +492,9 @@ namespace Manifestor.Build
     internal static class ManifestorBuildProgress
     {
         private const int InvalidProgressId = -1;
-        private const string LegacyProgressIdKey = "Manifestor.UnityEditorPipeline.ProgressId";
 
         public static void Restore(ManifestorBuildPipelineState state)
         {
-            RemoveLegacyProgress();
             if (state == null || !state.isActive)
             {
                 RemoveStaleProgress(state);
@@ -581,8 +592,7 @@ namespace Manifestor.Build
             var progressId = Progress.Start(
                 GetTitle(state),
                 state.message ?? string.Empty,
-                Progress.Options.Unmanaged | Progress.Options.Synchronous,
-                InvalidProgressId);
+                Progress.Options.Unmanaged | Progress.Options.Synchronous);
             Progress.SetPriority(progressId, Progress.Priority.Normal);
             Progress.SetStepLabel(progressId, "Build steps");
             RegisterCancellation(progressId);
@@ -646,26 +656,6 @@ namespace Manifestor.Build
             if (state != null)
             {
                 state.progressId = InvalidProgressId;
-            }
-        }
-
-        private static void RemoveLegacyProgress()
-        {
-            var progressId = SessionState.GetInt(LegacyProgressIdKey, InvalidProgressId);
-            try
-            {
-                if (progressId != InvalidProgressId && Progress.Exists(progressId))
-                {
-                    Progress.Remove(progressId, forceSynchronous: true);
-                }
-            }
-            catch (Exception exception)
-            {
-                Debug.LogWarning($"Manifestor could not remove its legacy progress item: {exception.Message}");
-            }
-            finally
-            {
-                SessionState.EraseInt(LegacyProgressIdKey);
             }
         }
 

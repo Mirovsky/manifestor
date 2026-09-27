@@ -34,15 +34,11 @@ namespace Manifestor.Build
                 }
 
                 var buildPlayerOptions = context.buildPlayerOptions;
-                if (buildPlayerOptions.target is 0 or BuildTarget.NoTarget)
+                var optionsValidation = ManifestorBuildExecution.NormalizeBuildPlayerOptions(
+                    context.profile, ref buildPlayerOptions);
+                if (!optionsValidation.success)
                 {
-                    buildPlayerOptions.target = requestedBuildTarget;
-                    buildPlayerOptions.subtarget = BuildProfileUtility.GetSubtarget(context.profile.buildProfile);
-                }
-
-                if (buildPlayerOptions.targetGroup == BuildTargetGroup.Unknown)
-                {
-                    buildPlayerOptions.targetGroup = BuildPipeline.GetBuildTargetGroup(buildPlayerOptions.target);
+                    return ManifestorBuildStepResult.Failed(optionsValidation.message);
                 }
 
                 buildPlayerOptions.scenes ??= GetEnabledEditorBuildSettingsScenes();

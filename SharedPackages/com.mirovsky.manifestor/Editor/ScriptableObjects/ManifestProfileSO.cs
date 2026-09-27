@@ -82,4 +82,17 @@ namespace Manifestor
             return string.Join(", ", types.Select(type => type.FullName ?? type.Name));
         }
     }
+
+    internal static class ManifestProfileAssets
+    {
+        public static List<ManifestProfileSO> FindAll()
+        {
+            return AssetDatabase.FindAssets("t:ManifestProfileSO")
+                .Select(AssetDatabase.GUIDToAssetPath)
+                .OrderBy(path => path, StringComparer.Ordinal)
+                .Select(AssetDatabase.LoadAssetAtPath<ManifestProfileSO>)
+                .Where(profile => profile != null)
+                .ToList();
+        }
+    }
 }

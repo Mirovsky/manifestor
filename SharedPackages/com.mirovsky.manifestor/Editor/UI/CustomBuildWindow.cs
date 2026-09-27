@@ -45,7 +45,7 @@ namespace Manifestor.UI
             applyManifestButton.clicked += HandleApplyManifestButtonClicked;
 
             var buildButton = rootVisualElement.Q<DropdownButton>("BuildButton");
-            buildButton.clicked += HandleDefaultBuildButtonClicked;
+            buildButton.clicked += () => StartBuild(BuildOptions.None);
             buildButton.choiceSelected += HandleBuildChoiceSelected;
 
             _manifestsList = rootVisualElement.Q<ListView>("ManifestsListView");
@@ -77,12 +77,12 @@ namespace Manifestor.UI
             window.Show();
         }
 
-        private void HandleDefaultBuildButtonClicked()
+        private void StartBuild(BuildOptions options)
         {
             var profile = _customBuildData.selectedManifestProfile;
             if (profile?.buildProfile == null)
             {
-                var buildResult = ManifestorUnityEditorPipeline.Build(profile, string.Empty);
+                var buildResult = ManifestorUnityEditorPipeline.Build(profile, string.Empty, options);
                 LogPipelineStartError(buildResult);
                 return;
             }
@@ -93,48 +93,7 @@ namespace Manifestor.UI
                 return;
             }
 
-            var result = ManifestorUnityEditorPipeline.Build(profile, folderPath);
-            LogPipelineStartError(result);
-        }
-
-        private void HandleCleanBuildButtonClicked()
-        {
-            var profile = _customBuildData.selectedManifestProfile;
-            if (profile?.buildProfile == null)
-            {
-                var buildResult = ManifestorUnityEditorPipeline.Build(profile, string.Empty);
-                LogPipelineStartError(buildResult);
-                return;
-            }
-
-            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
-            if (string.IsNullOrEmpty(folderPath))
-            {
-                return;
-            }
-
-            var result = ManifestorUnityEditorPipeline.Build(profile, folderPath, BuildOptions.CleanBuildCache);
-            LogPipelineStartError(result);
-        }
-
-        private void HandleDebugBuildButtonClicked()
-        {
-            var profile = _customBuildData.selectedManifestProfile;
-            if (profile?.buildProfile == null)
-            {
-                var buildResult = ManifestorUnityEditorPipeline.Build(profile, string.Empty);
-                LogPipelineStartError(buildResult);
-                return;
-            }
-
-            var folderPath = EditorUtility.SaveFolderPanel("Build output folder", "", "");
-            if (string.IsNullOrEmpty(folderPath))
-            {
-                return;
-            }
-
-            var buildOptions = BuildOptions.Development | BuildOptions.AllowDebugging;
-            var result = ManifestorUnityEditorPipeline.Build(profile, folderPath, buildOptions);
+            var result = ManifestorUnityEditorPipeline.Build(profile, folderPath, options);
             LogPipelineStartError(result);
         }
 
@@ -143,10 +102,10 @@ namespace Manifestor.UI
             switch (choice)
             {
                 case "Clean Build":
-                    HandleCleanBuildButtonClicked();
+                    StartBuild(BuildOptions.CleanBuildCache);
                     break;
                 case "Debug Build":
-                    HandleDebugBuildButtonClicked();
+                    StartBuild(BuildOptions.Development | BuildOptions.AllowDebugging);
                     break;
             }
         }
@@ -315,10 +274,7 @@ namespace Manifestor.UI
         {
             ManifestorSettings.instance.TryGetLastAppliedProfilePath(out var profilePath);
 
-            return AssetDatabase.FindAssets("t:ManifestProfileSO")
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .OrderBy(path => path, StringComparer.Ordinal)
-                .Select(AssetDatabase.LoadAssetAtPath<ManifestProfileSO>)
+            return ManifestProfileAssets.FindAll()
                 .Select(manifest => new ManifestProfileData
                 {
                     manifestProfile = manifest,

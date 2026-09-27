@@ -79,7 +79,7 @@ namespace Manifestor.Build
             try
             {
                 receipt = LoadReceipt();
-                var profile = VerifyReceipt(receipt, UnityBuildAutomationPhase.Applied);
+                var profile = VerifyReceipt(receipt, UnityBuildAutomationPhase.Applied, verifyApplyState: false);
                 ActivateBuildProfile(profile);
                 VerifyApplyState(profile, receipt);
                 RunCategory(profile, receipt, ManifestorBuildStepCategory.PreBuild);
@@ -267,7 +267,8 @@ namespace Manifestor.Build
 
         private static ManifestProfileSO VerifyReceipt(
             UnityBuildAutomationReceipt receipt,
-            UnityBuildAutomationPhase expectedPhase)
+            UnityBuildAutomationPhase expectedPhase,
+            bool verifyApplyState = true)
         {
             var profilePath = GetProfilePathFromEnvironment();
             if (receipt.phase != expectedPhase)
@@ -283,7 +284,10 @@ namespace Manifestor.Build
             }
 
             var profile = LoadAndValidateProfile(profilePath);
-            VerifyApplyState(profile, receipt);
+            if (verifyApplyState)
+            {
+                VerifyApplyState(profile, receipt);
+            }
             return profile;
         }
 
