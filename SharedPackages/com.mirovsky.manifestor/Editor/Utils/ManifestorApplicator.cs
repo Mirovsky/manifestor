@@ -2,6 +2,8 @@ namespace Manifestor
 {
     using System;
     using System.Collections.Generic;
+    using System.IO;
+    using System.Text;
     using Build;
     using UnityEditor;
     using UnityEditor.Build;
@@ -12,7 +14,57 @@ namespace Manifestor
 
     public static class ManifestorApplicator
     {
+        private const int ApplyJournalVersion = 1;
+        private const string ApplyJournalRelativePath = "Library/Manifestor/apply-journal.json";
         private static ListRequest _resolveRequest;
+
+        internal static bool hasPendingRecovery => File.Exists(GetApplyJournalPath());
+
+        internal static ManifestorResult RecoverInterruptedApplyIfNeeded(bool sessionStateIsActive)
+        {
+            if (!hasPendingRecovery || sessionStateIsActive)
+            {
+                return ManifestorResult.Ok();
+            }
+
+            ApplyJournal journal;
+            try
+            {
+                journal = JsonUtility.FromJson<ApplyJournal>(File.ReadAllText(GetApplyJournalPath()));
+                if (journal == null || journal.version != ApplyJournalVersion || journal.state == null ||
+                    !journal.state.isActive)
+                {
+                    return ManifestorResult.Error("The manifest apply recovery journal is invalid.");
+                }
+            }
+            catch (Exception exception)
+            {
+                return ManifestorResult.Error($"Could not read the manifest apply recovery journal: {exception.Message}");
+            }
+
+            var errors = new List<string>();
+            RestorePreviousState(journal.state, errors);
+            ResolveRestoredManifest(errors);
+            if (errors.Count == 0)
+            {
+                try
+                {
+                    DeleteApplyJournal();
+                }
+                catch (Exception exception)
+                {
+                    errors.Add($"recovery journal: {exception.Message}");
+                }
+            }
+
+            if (errors.Count > 0)
+            {
+                return ManifestorResult.Error("Manifest apply recovery failed for " + string.Join(", ", errors) + ".");
+            }
+
+            Debug.LogWarning("An interrupted manifest apply was rolled back from its recovery journal.");
+            return ManifestorResult.Ok();
+        }
 
         public static ManifestorBuildStepResult Apply(ManifestorBuildContext context)
         {
@@ -88,6 +140,7 @@ namespace Manifestor
 
                 ManifestorSettings.instance.SetLastAppliedManifest(state.profilePath, state.profileFingerprint);
                 ClearState(context);
+                DeleteApplyJournal();
 
                 return ManifestorBuildStepResult.Succeeded($"Applied manifest profile '{context.profile.profileName}'.");
             }
@@ -117,6 +170,12 @@ namespace Manifestor
         private static ManifestorBuildStepResult Begin(ManifestorBuildContext context, out ApplyState state)
         {
             state = new ApplyState();
+            if (hasPendingRecovery)
+            {
+                return ManifestorBuildStepResult.Failed(
+                    "An unfinished manifest apply recovery journal must be resolved before applying another profile.");
+            }
+
             var profile = context.profile;
 
             var validation = ManifestorProfileValidator.Validate(profile);
@@ -167,6 +226,7 @@ namespace Manifestor
                     hadPreviousFingerprint = ManifestorSettings.instance.TryGetLastAppliedProfileFingerprint(out state.previousFingerprint)
                 };
 
+                SaveApplyJournal(state);
                 context.SaveCheckpoint(JsonUtility.ToJson(state));
 
                 if (!TryActivateBuildState(profile.buildProfile, buildTarget, out var buildStateError))
@@ -295,6 +355,39 @@ namespace Manifestor
             bool cancelled = false)
         {
             var rollbackErrors = new List<string>();
+            RestorePreviousState(state, rollbackErrors);
+            ResolveRestoredManifest(rollbackErrors);
+            try
+            {
+                ClearState(context);
+            }
+            catch (Exception exception)
+            {
+                rollbackErrors.Add($"apply checkpoint: {exception.Message}");
+            }
+
+            if (rollbackErrors.Count == 0)
+            {
+                try
+                {
+                    DeleteApplyJournal();
+                }
+                catch (Exception exception)
+                {
+                    rollbackErrors.Add($"recovery journal: {exception.Message}");
+                }
+            }
+
+            var rollbackSuffix = rollbackErrors.Count == 0
+                ? string.Empty
+                : " Rollback also failed for " + string.Join(", ", rollbackErrors) + ".";
+            return cancelled
+                ? ManifestorBuildStepResult.Cancelled(failureMessage + rollbackSuffix)
+                : ManifestorBuildStepResult.Failed(failureMessage + rollbackSuffix);
+        }
+
+        private static void RestorePreviousState(ApplyState state, ICollection<string> rollbackErrors)
+        {
             try
             {
                 if (state.previousManifestExisted)
@@ -336,8 +429,11 @@ namespace Manifestor
             {
                 rollbackErrors.Add($"editor preferences: {exception.Message}");
             }
+        }
 
-            ClearState(context);
+        private static void ResolveRestoredManifest(ICollection<string> rollbackErrors)
+        {
+            _resolveRequest = null;
             try
             {
                 Client.Resolve();
@@ -346,13 +442,53 @@ namespace Manifestor
             {
                 rollbackErrors.Add($"package rollback resolve: {exception.Message}");
             }
+        }
 
-            var rollbackSuffix = rollbackErrors.Count == 0
-                ? string.Empty
-                : " Rollback also failed for " + string.Join(", ", rollbackErrors) + ".";
-            return cancelled
-                ? ManifestorBuildStepResult.Cancelled(failureMessage + rollbackSuffix)
-                : ManifestorBuildStepResult.Failed(failureMessage + rollbackSuffix);
+        private static void SaveApplyJournal(ApplyState state)
+        {
+            var path = GetApplyJournalPath();
+            if (File.Exists(path))
+            {
+                throw new InvalidOperationException("An unfinished manifest apply recovery journal already exists.");
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? string.Empty);
+            var temporaryPath = path + ".tmp";
+            try
+            {
+                File.WriteAllText(
+                    temporaryPath,
+                    JsonUtility.ToJson(new ApplyJournal { version = ApplyJournalVersion, state = state }),
+                    new UTF8Encoding(false));
+                File.Move(temporaryPath, path);
+            }
+            finally
+            {
+                if (File.Exists(temporaryPath))
+                {
+                    File.Delete(temporaryPath);
+                }
+            }
+        }
+
+        private static void DeleteApplyJournal()
+        {
+            var path = GetApplyJournalPath();
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+
+        private static string GetApplyJournalPath()
+        {
+            var projectRoot = Directory.GetParent(Application.dataPath)?.FullName;
+            if (string.IsNullOrEmpty(projectRoot))
+            {
+                throw new InvalidOperationException("Could not find the Unity project root for apply recovery.");
+            }
+
+            return Path.Combine(projectRoot, ApplyJournalRelativePath);
         }
 
         internal static void RestoreBuildState(
@@ -441,6 +577,13 @@ namespace Manifestor
         {
             _resolveRequest = null;
             context.SaveCheckpoint(string.Empty);
+        }
+
+        [Serializable]
+        private sealed class ApplyJournal
+        {
+            public int version;
+            public ApplyState state;
         }
 
         [Serializable]

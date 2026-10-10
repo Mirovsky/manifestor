@@ -4,7 +4,6 @@
     using System.Collections.Generic;
     using System.Linq;
     using SerializedData;
-    using UI;
     using UnityEditor;
     using UnityEngine;
 
@@ -70,14 +69,11 @@
             Undo.CollapseUndoOperations(undoGroup);
         }
 
-        public static void ApplyPackageListChanges(List<ManifestorMigrateTool.MigrationRow> rows)
+        public static void ApplyPackageListChanges(IReadOnlyList<ManifestPackageMigrationSelection> selections)
         {
-            var selectedChanges = rows
-                .Where(row => row.targets != null)
-                .SelectMany(row => row.targets
-                    .Where(target => target != null && target.selected && target.packageList != null)
-                    .Select(target => new SelectedChange(row.change, target.packageList)))
-                .ToLookup(selectedChange => selectedChange.packageList);
+            var selectedChanges = (selections ?? Array.Empty<ManifestPackageMigrationSelection>())
+                .Where(selection => selection.packageList != null)
+                .ToLookup(selection => selection.packageList);
             if (!TryFindAppliedProfilePackageLists(out var packageLists))
             {
                 return;
@@ -95,7 +91,7 @@
                 Undo.RecordObject(packageList, "Apply Package Manifest Migration");
 
                 var packageListChanged = selectedChanges[packageList]
-                    .Aggregate(false, (current, selectedChange) => current | ApplyChange(packageList, selectedChange.change));
+                    .Aggregate(false, (current, selection) => current | ApplyChange(packageList, selection.change));
                 packageListChanged |= scopedRegistries
                     .Where(scopedRegistry => UsesScopedRegistry(packageList, scopedRegistry))
                     .Aggregate(false, (current, scopedRegistry) => current | packageList.AddScopedRegistry(scopedRegistry.name, scopedRegistry.url, scopedRegistry.scopes));
@@ -116,7 +112,12 @@
                 AssetDatabase.SaveAssets();
             }
 
-            ManifestorIO.RefreshDependenciesFingerprint(manifest);
+            if (!ManifestPackageDiffUtility.Compare(
+                    manifest?.dependencies,
+                    packageLists.Select(target => target.packageList)).hasChanges)
+            {
+                ManifestorIO.RefreshDependenciesFingerprint(manifest);
+            }
         }
 
         private static bool ApplyChange(ManifestorPackagesListSO packageList, ManifestPackageDiffEntry change)
@@ -168,17 +169,6 @@
                     .Any(scope => packageName.StartsWith(scope, StringComparison.Ordinal)));
         }
 
-        private readonly struct SelectedChange
-        {
-            public readonly ManifestPackageDiffEntry change;
-            public readonly ManifestorPackagesListSO packageList;
-
-            public SelectedChange(ManifestPackageDiffEntry change, ManifestorPackagesListSO packageList)
-            {
-                this.change = change;
-                this.packageList = packageList;
-            }
-        }
     }
 
 }
