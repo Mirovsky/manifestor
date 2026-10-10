@@ -50,7 +50,13 @@ namespace Manifestor.UI
 
         private void HandleApplyButtonClicked()
         {
-            PackagesListUtils.ApplyPackageListChanges(_viewDataModel.rows);
+            var selections = _viewDataModel.rows
+                .Where(row => row.targets != null)
+                .SelectMany(row => row.targets
+                    .Where(target => target != null && target.selected && target.packageList != null)
+                    .Select(target => new ManifestPackageMigrationSelection(row.change, target.packageList)))
+                .ToArray();
+            PackagesListUtils.ApplyPackageListChanges(selections);
 
             GetWindow<ManifestorMigrateTool>().Close();
         }

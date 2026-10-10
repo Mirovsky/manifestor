@@ -43,6 +43,12 @@ namespace Manifestor.Build
         public void Restore()
         {
             var state = ManifestorBuildPipelineStateStore.Load();
+            var recovery = ManifestorApplicator.RecoverInterruptedApplyIfNeeded(state.isActive);
+            if (!recovery.success)
+            {
+                Debug.LogError(recovery.message);
+            }
+
             ManifestorBuildProgress.Restore(state);
             ManifestorBuildPipelineStateStore.Save(state);
             _nextResumeAfterUtcTicks = state.resumeAfterUtcTicks;
@@ -139,6 +145,16 @@ namespace Manifestor.Build
             BuildPlayerOptions? initialBuildPlayerOptions)
         {
             var currentState = ManifestorBuildPipelineStateStore.Load();
+            if (ManifestorApplicator.hasPendingRecovery && !currentState.isActive)
+            {
+                var recovery = ManifestorApplicator.RecoverInterruptedApplyIfNeeded(false);
+                if (!recovery.success)
+                {
+                    return ManifestorResult.Error(
+                        $"An unfinished manifest apply must be recovered before starting another operation. {recovery.message}");
+                }
+            }
+
             if (currentState.isActive || BuildPipeline.isBuildingPlayer)
             {
                 return ManifestorResult.Error("A custom build is already in progress.");

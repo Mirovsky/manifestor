@@ -14,4 +14,18 @@
             this.assetPath = assetPath ?? string.Empty;
         }
     }
+
+    public readonly struct ManifestPackageMigrationSelection
+    {
+        public readonly ManifestPackageDiffEntry change;
+        public readonly ManifestorPackagesListSO packageList;
+
+        public ManifestPackageMigrationSelection(
+            ManifestPackageDiffEntry change,
+            ManifestorPackagesListSO packageList)
+        {
+            this.change = change;
+            this.packageList = packageList;
+        }
+    }
 }

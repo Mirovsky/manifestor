@@ -10,13 +10,9 @@ namespace Manifestor
         public static ManifestPackageDiffResult CreateManifestDiff()
         {
             var manifest = ManifestorIO.LoadExistingManifest();
-            if (ManifestorIO.HasUnchangedGeneratedDependencies(manifest) ||
-                !PackagesListUtils.TryFindAppliedProfilePackageLists(out var packageListTargets))
+            if (!PackagesListUtils.TryFindAppliedProfilePackageLists(out var packageListTargets))
             {
-                return new ManifestPackageDiffResult(
-                    Array.Empty<ManifestPackageDiffEntry>(),
-                    Array.Empty<ManifestPackageDiffEntry>(),
-                    Array.Empty<ManifestPackageDiffEntry>());
+                return new ManifestPackageDiffResult(Array.Empty<ManifestPackageDiffEntry>());
             }
 
             var packageLists = packageListTargets.Select(p => p.packageList);
@@ -33,24 +29,17 @@ namespace Manifestor
 
             var missing = manifest
                 .Where(d => !packageListDependencies.ContainsKey(d.Key))
-                .Select(d => ManifestPackageDiffEntry.MissingInPackageLists(d.Key, d.Value))
-                .ToList();
+                .Select(d => ManifestPackageDiffEntry.MissingInPackageLists(d.Key, d.Value));
             var changed = manifest
                 .Where(d => packageListDependencies.ContainsKey(d.Key))
                 .SelectMany(d => packageListDependencies[d.Key]
                     .Where(packageListValue => packageListValue != d.Value)
-                    .Select(packageListValue => ManifestPackageDiffEntry.Changed(d.Key, d.Value, packageListValue, ManifestPackageChangeKind.Changed)))
-                .ToList();
+                    .Select(packageListValue => ManifestPackageDiffEntry.Changed(d.Key, d.Value, packageListValue, ManifestPackageChangeKind.Changed)));
             var removed = packageListDependencies
                 .Where(d => !manifest.ContainsKey(d.Key))
-                .SelectMany(d => d.Value.Select(packageListValue => ManifestPackageDiffEntry.RemovedFromManifest(d.Key, packageListValue)))
-                .ToList();
+                .SelectMany(d => d.Value.Select(packageListValue => ManifestPackageDiffEntry.RemovedFromManifest(d.Key, packageListValue)));
 
-            return new ManifestPackageDiffResult(
-                SortByPackageName(missing),
-                SortByPackageName(removed),
-                SortByPackageName(changed)
-            );
+            return new ManifestPackageDiffResult(missing.Concat(removed).Concat(changed));
         }
 
         private static Dictionary<string, string> NormalizeManifestDependencies(IReadOnlyDictionary<string, string> manifestDependencies)
@@ -75,9 +64,9 @@ namespace Manifestor
             return result;
         }
 
-        private static Dictionary<string, IReadOnlyList<string>> NormalizePackageListDependencies(IEnumerable<ManifestorPackagesListSO> packageLists)
+        private static Dictionary<string, HashSet<string>> NormalizePackageListDependencies(IEnumerable<ManifestorPackagesListSO> packageLists)
         {
-            var result = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+            var result = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
             foreach (var packageList in packageLists ?? Array.Empty<ManifestorPackagesListSO>())
             {
                 if (packageList?.packages == null)
@@ -101,33 +90,15 @@ namespace Manifestor
                     var packageLocation = StringUtils.Normalize(package.location);
                     if (!result.TryGetValue(packageName, out var packageLocations))
                     {
-                        packageLocations = new List<string>();
+                        packageLocations = new HashSet<string>(StringComparer.Ordinal);
                         result[packageName] = packageLocations;
                     }
 
-                    if (!packageLocations.Contains(packageLocation))
-                    {
-                        packageLocations.Add(packageLocation);
-                    }
+                    packageLocations.Add(packageLocation);
                 }
             }
 
-            return result.ToDictionary(
-                pair => pair.Key,
-                pair => (IReadOnlyList<string>)pair.Value,
-                StringComparer.Ordinal);
-        }
-
-        private static IReadOnlyList<ManifestPackageDiffEntry> SortByPackageName(List<ManifestPackageDiffEntry> changes)
-        {
-            changes.Sort((left, right) =>
-            {
-                var nameComparison = string.Compare(left.packageTechnicalName, right.packageTechnicalName, StringComparison.Ordinal);
-                return nameComparison == 0 ?
-                    string.Compare(left.packageListValue, right.packageListValue, StringComparison.Ordinal) :
-                    nameComparison;
-            });
-            return changes;
+            return result;
         }
     }
 
@@ -136,15 +107,12 @@ namespace Manifestor
         public readonly IReadOnlyList<ManifestPackageDiffEntry> allChanges;
         public bool hasChanges => allChanges.Count > 0;
 
-        internal ManifestPackageDiffResult(
-            IReadOnlyList<ManifestPackageDiffEntry> missingInPackageLists,
-            IReadOnlyList<ManifestPackageDiffEntry> removedFromManifest,
-            IReadOnlyList<ManifestPackageDiffEntry> changed)
+        internal ManifestPackageDiffResult(IEnumerable<ManifestPackageDiffEntry> changes)
         {
-            allChanges = missingInPackageLists
-                .Concat(removedFromManifest)
-                .Concat(changed)
+            allChanges = changes
                 .OrderBy(change => change.packageTechnicalName, StringComparer.Ordinal)
+                .ThenBy(change => change.changeKind)
+                .ThenBy(change => change.packageListValue, StringComparer.Ordinal)
                 .ToArray();
         }
     }
