@@ -10,7 +10,8 @@ namespace Manifestor.Build
     {
         public static ManifestorBuildStepResult Prepare(
             ManifestorBuildContext context,
-            ManifestorBuildStepTargets targets)
+            ManifestorBuildStepTargets targets,
+            string generatedBuildLocationPath = null)
         {
             if (context?.profile?.buildProfile == null)
             {
@@ -53,6 +54,12 @@ namespace Manifestor.Build
                         return ManifestorBuildStepResult.Failed(
                             $"No build location is configured for target '{buildPlayerOptions.target}'.");
                     }
+                }
+
+                if (generatedBuildLocationPath != null &&
+                    string.Equals(buildPlayerOptions.locationPathName, generatedBuildLocationPath, StringComparison.Ordinal))
+                {
+                    BuildPlayerOptionsFactory.FinalizeBuildLocation(ref buildPlayerOptions);
                 }
 
                 context.buildPlayerOptions = buildPlayerOptions;

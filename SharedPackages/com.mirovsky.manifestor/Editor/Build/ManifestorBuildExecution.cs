@@ -105,6 +105,10 @@ namespace Manifestor.Build
                     profileGuid = profileGuid,
                     profileFingerprint = ManifestorProfileFingerprint.Calculate(profile),
                     buildPlayerOptions = SerializableBuildPlayerOptions.From(buildPlayerOptions),
+                    generatedBuildLocationPath = operation == ManifestorBuildOperation.Build &&
+                                                 !initialBuildPlayerOptions.HasValue
+                        ? buildPlayerOptions.locationPathName
+                        : null,
                     actions = CreateActions(orderedSteps, operation),
                     resumeAfterUtcTicks = DateTime.UtcNow.Ticks
                 };
