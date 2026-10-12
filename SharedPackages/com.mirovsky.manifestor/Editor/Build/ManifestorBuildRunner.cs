@@ -353,7 +353,8 @@ namespace Manifestor.Build
             ReportAndSaveActiveState(state);
 
             var context = CreateContext(state, profile, state.cancellationRequested, false);
-            var preparationResult = ManifestorPlayerBuild.Prepare(context, state.targets);
+            var preparationResult = ManifestorPlayerBuild.Prepare(
+                context, state.targets, state.generatedBuildLocationPath);
             state.buildPlayerOptions = SerializableBuildPlayerOptions.From(context.buildPlayerOptions);
             if (!preparationResult.success)
             {

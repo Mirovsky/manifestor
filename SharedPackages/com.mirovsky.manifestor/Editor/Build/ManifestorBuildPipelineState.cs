@@ -8,7 +8,7 @@ namespace Manifestor.Build
     [Serializable]
     internal sealed class ManifestorBuildPipelineState
     {
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
 
         public int version = CurrentVersion;
         public bool isActive;
@@ -19,6 +19,7 @@ namespace Manifestor.Build
         public string profileGuid;
         public string profileFingerprint;
         public SerializableBuildPlayerOptions buildPlayerOptions = new();
+        public string generatedBuildLocationPath;
         public List<ManifestorBuildAction> actions = new();
         public int nextActionIndex;
         public bool currentActionStarted;

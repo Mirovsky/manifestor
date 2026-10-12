@@ -16,6 +16,16 @@ public static class UnityEditorInternalApi
             "GetStreamingAssetsBundleManifestPath");
     }
 
+    public static string GetBuildExtension(BuildTarget buildTarget, int subtarget, BuildOptions options)
+    {
+        return InvokeStatic<string>(
+            typeof(BuildPipeline).Assembly,
+            "UnityEditor.PostprocessBuildPlayer",
+            "GetExtensionForBuildTarget",
+            new[] { typeof(BuildTarget), typeof(int), typeof(BuildOptions) },
+            new object[] { buildTarget, subtarget, options });
+    }
+
     public static BuildOptions GetBuildOptions(
         BuildTarget buildTarget,
         BuildTargetGroup buildTargetGroup,
